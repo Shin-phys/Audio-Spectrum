@@ -3,2012 +3,1505 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>マイク入力 波形＋音響スペクトル</title>
+  <title>Mic Waveform + Acoustic Spectrum</title>
   <style>
     :root{
-      --bg:#ffffff; --fg:#111111; --muted:#666;
-      --panel:#f4f5f7; --border:#d7dbe0;
-      --accent:#1e66ff; --accent2:#ff2d55;
-      --grid: rgba(0,0,0,.08);
-      --overlay: rgba(30,102,255,.18);
-      --overlayBorder: rgba(30,102,255,.7);
-      --btn:#ffffff; --btnfg:#111; --btnbd:#cfd6dd;
-      --shadow: rgba(0,0,0,.06);
+      --bg:#ffffff;
+      --fg:#111111;
+      --panel:#fafafa;
+      --border:#d9d9d9;
+      --grid:#e9e9e9;
+      --muted:#666666;
+      --accent:#ff6a00;
+      --peak:#1a7f37;
+      --abA:#0b57d0;
+      --abB:#b3261e;
+      --shadow: rgba(0,0,0,0.06);
     }
     [data-theme="dark"]{
-      --bg:#0b0c10; --fg:#f2f3f5; --muted:#a9b0ba;
-      --panel:#141720; --border:#2a3240;
-      --grid: rgba(255,255,255,.10);
-      --overlay: rgba(110,170,255,.18);
-      --overlayBorder: rgba(110,170,255,.75);
-      --btn:#10131a; --btnfg:#f2f3f5; --btnbd:#2a3240;
-      --shadow: rgba(0,0,0,.35);
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0; background:var(--bg); color:var(--fg);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
-    }
-    .app{
-      max-width: 1280px; margin: 0 auto; padding: 12px;
-      display:flex; flex-direction:column; gap:10px;
-    }
-    .topbar{
-      background:var(--panel); border:1px solid var(--border); border-radius:12px;
-      padding:10px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;
-      box-shadow: 0 2px 12px var(--shadow);
-    }
-    .group{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-    .spacer{flex:1}
-    button, select, input[type="number"]{
-      background:var(--btn); color:var(--btnfg);
-      border:1px solid var(--btnbd); border-radius:10px;
-      padding:8px 10px; font-size:14px; line-height:1;
-      box-shadow: 0 1px 6px var(--shadow);
-    }
-    button{cursor:pointer}
-    button:disabled{opacity:.5; cursor:not-allowed}
-    button.primary{
-      border-color: transparent; background: var(--accent); color: #fff;
-    }
-    button.danger{
-      border-color: transparent; background: var(--accent2); color:#fff;
-    }
-    .seg{
-      display:flex; border:1px solid var(--btnbd); border-radius:12px; overflow:hidden;
-      box-shadow: 0 1px 6px var(--shadow);
-    }
-    .seg button{
-      border:none; border-right:1px solid var(--btnbd);
-      border-radius:0; box-shadow:none; padding:9px 12px;
-      background:var(--btn); color:var(--btnfg);
-    }
-    .seg button:last-child{border-right:none}
-    .seg button.active{
-      background: var(--accent); color:#fff;
+      --bg:#0c0f14;
+      --fg:#e9eef6;
+      --panel:#121826;
+      --border:#283043;
+      --grid:#1e2636;
+      --muted:#a6b2c3;
+      --accent:#ff9a3c;
+      --peak:#58d68d;
+      --abA:#8ab4f8;
+      --abB:#ff8a80;
+      --shadow: rgba(0,0,0,0.35);
     }
 
-    .content{
-      display:flex; flex-direction:column; gap:10px;
+    *{ box-sizing:border-box; }
+    body{
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      margin: 12px;
+      background: var(--bg);
+      color: var(--fg);
     }
-    .dual{
-      display:flex; gap:10px; align-items:stretch;
-      flex-direction:column;
-    }
-    @media (min-width: 980px){
-      .dual.row{flex-direction:row}
-    }
+    h2{ margin: 0 0 10px 0; font-size: 18px; }
 
     .panel{
-      background:var(--panel); border:1px solid var(--border);
-      border-radius:12px; padding:10px;
-      box-shadow: 0 2px 12px var(--shadow);
-      display:flex; flex-direction:column; gap:8px;
-      min-width: 0;
+      max-width: 1100px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+      box-shadow: 0 4px 12px var(--shadow);
+      display:flex;
+      flex-direction: column;
+      gap:10px;
     }
-    .panelHeader{
-      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+
+    .inline{
+      display:flex;
+      gap:10px;
+      flex-wrap: wrap;
+      align-items:center;
     }
-    .panelHeader h2{
-      margin:0; font-size:16px; font-weight:700;
-    }
-    .panelHeader .controls{
-      margin-left:auto;
-      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-    }
-    .controlRow{
-      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-    }
-    label{font-size:13px; color:var(--muted)}
-    input[type="range"]{width: 190px}
-    .canvasWrap{
-      position:relative; width:100%;
-      border:1px solid var(--border); border-radius:12px;
-      overflow:hidden; background:var(--bg);
-      touch-action: none; /* for custom gestures */
-    }
-    canvas{display:block; width:100%; height:320px}
-    .big canvas{height:520px}
-    .overlayRect{
-      position:absolute; inset:0; pointer-events:none;
-    }
-    .infoBubble{
-      position:absolute;
-      background: rgba(0,0,0,.78);
-      color:#fff; padding:6px 8px; border-radius:10px;
-      font-size:12px; white-space:nowrap;
-      transform: translate(10px, -10px);
-      pointer-events:none;
-      display:none;
-      max-width: 80%;
-    }
-    [data-theme="dark"] .infoBubble{
-      background: rgba(255,255,255,.12);
-      border: 1px solid rgba(255,255,255,.18);
-    }
-    .footer{
-      display:flex; flex-direction:column; gap:6px;
-      padding-top:2px;
-    }
-    .delta{
-      font-size:18px; font-weight:800;
-      letter-spacing:.2px;
-    }
-    .small{
-      font-size:13px; color:var(--muted); line-height:1.35;
-    }
-    .status{
-      padding:10px;
-      background: var(--panel); border:1px solid var(--border);
-      border-radius:12px;
-      box-shadow: 0 2px 12px var(--shadow);
-    }
-    .pill{
-      display:inline-block; padding:2px 8px; border-radius:999px;
-      border:1px solid var(--border); margin-right:6px;
-      font-size:12px; color:var(--muted);
-    }
-    .kbd{
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      padding:1px 6px; border-radius:7px;
-      border:1px solid var(--border);
-      background: rgba(127,127,127,.12);
+
+    button{
+      padding: 10px 14px;
+      font-size: 15px;
+      border: 1px solid var(--border);
+      background: transparent;
       color: var(--fg);
-      margin: 0 2px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    button.primary{
+      border-color: transparent;
+      background: var(--fg);
+      color: var(--bg);
+    }
+    [data-theme="dark"] button.primary{
+      background: #e9eef6;
+      color: #0c0f14;
+    }
+    button.danger{
+      border-color: transparent;
+      background: #b3261e;
+      color: #fff;
+    }
+    [data-theme="dark"] button.danger{
+      background: #ff8a80;
+      color: #0c0f14;
+    }
+    button:disabled{
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    label{ font-size: 14px; color: var(--fg); }
+    select, input[type="number"]{
+      font-size: 14px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--fg);
+      outline: none;
+    }
+    input[type="range"]{ width: 260px; }
+
+    .tabs{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .tab{
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      background: transparent;
+      border-radius: 999px;
+      cursor:pointer;
+      font-size: 14px;
+      color: var(--fg);
+    }
+    .tab.active{
+      background: var(--fg);
+      color: var(--bg);
+      border-color: transparent;
+    }
+    [data-theme="dark"] .tab.active{
+      background:#e9eef6;
+      color:#0c0f14;
+    }
+
+    .row{
+      display:flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: stretch;
+      max-width: 1100px;
+      margin-top: 12px;
+    }
+    .card{
+      flex: 1 1 520px;
+      min-width: 300px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+      box-shadow: 0 4px 12px var(--shadow);
+      display:flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .cardTitle{
+      font-size: 14px;
+      color: var(--muted);
+      display:flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .canvasWrap{
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    canvas{
+      width: 100%;
+      height: 240px;
+      display:block;
+      touch-action: none;
+    }
+
+    .delta{
+      border-top: 1px dashed var(--border);
+      padding-top: 8px;
+      font-size: 18px;
+      line-height: 1.35;
+      font-weight: 650;
+      color: var(--fg);
+      min-height: 2.2em;
+      white-space: pre-wrap;
+    }
+    .delta small{
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    .status{
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg);
+      font-size: 13px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    .pill{
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .hint{
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .hidden{ display:none !important; }
+
+    @media (max-width: 520px){
+      input[type="range"]{ width: 200px; }
+      canvas{ height: 220px; }
+      .delta{ font-size: 16px; }
     }
   </style>
 </head>
+
 <body>
-<div class="app" id="app" data-theme="light">
-  <!-- TOP BAR -->
-  <div class="topbar">
-    <div class="group">
+  <h2>マイク入力：波形（直近N秒）＋ 音響スペクトル（正規化・ズーム・2点選択・CSV）</h2>
+
+  <div class="panel">
+    <div class="inline">
       <button id="btnStart" class="primary">Start</button>
-      <button id="btnPause">Pause</button>
-      <button id="btnReset" class="danger">Reset</button>
+      <button id="btnPause" disabled>Pause</button>
+      <button id="btnReset" class="danger" disabled>Reset</button>
+
+      <span class="pill" id="srPill">sampleRate: -</span>
+      <span style="flex:1 1 auto;"></span>
+      <button id="btnTheme">白黒反転</button>
     </div>
 
-    <div class="group">
-      <div class="seg" aria-label="表示切替">
-        <button id="tabBoth" class="active">同時表示</button>
-        <button id="tabWave">波形のみ</button>
-        <button id="tabSpec">音響スペクトルのみ</button>
+    <div class="inline">
+      <div class="tabs" role="tablist" aria-label="表示切替">
+        <button class="tab active" id="tabBoth">同時表示</button>
+        <button class="tab" id="tabWave">波形のみ</button>
+        <button class="tab" id="tabSpec">音響スペクトルのみ</button>
       </div>
+
+      <span class="pill" id="modePill">モード: ズーム</span>
+      <button id="btnMode">ズーム / 2点選択 切替</button>
+      <button id="btnZoomReset" disabled>ズームリセット</button>
     </div>
 
-    <div class="group">
-      <button id="btnMode">2点選択へ</button>
-      <button id="btnTheme">ダークへ</button>
+    <div class="inline">
+      <label>
+        波形時間窓（N秒）:
+        <input id="secRange" type="range" min="0.05" max="5" step="0.01" value="1.00">
+      </label>
+      <label>
+        <input id="secNum" type="number" min="0.05" max="5" step="0.01" value="1.00" style="width:90px;">
+      </label>
+
+      <label>
+        FFTサイズ:
+        <select id="fft"></select>
+      </label>
     </div>
 
-    <div class="spacer"></div>
+    <div class="inline">
+      <label>スペクトル周波数　最小:
+        <select id="fminPreset"></select>
+      </label>
+      <input id="fminCustom" type="number" step="1" value="200" style="width:92px;" class="hidden">
 
-    <div class="group">
-      <span class="pill" id="pillState">停止中</span>
-      <span class="pill" id="pillHint">ショートカット: <span class="kbd">S</span><span class="kbd">P</span><span class="kbd">R</span><span class="kbd">Z</span><span class="kbd">W</span><span class="kbd">F</span><span class="kbd">B</span><span class="kbd">V</span><span class="kbd">Esc</span></span>
+      <label>最大:
+        <select id="fmaxPreset"></select>
+      </label>
+      <input id="fmaxCustom" type="number" step="1" value="1500" style="width:92px;" class="hidden">
+
+      <span class="hint">（デフォルト: 200〜1500 Hz / 縦軸: 正規化 0〜100%）</span>
+
+      <span style="flex:1 1 auto;"></span>
+
+      <button id="btnResetABWave" disabled>波形 A/B リセット</button>
+      <button id="btnResetABSpec" disabled>スペクトル A/B リセット</button>
+      <button id="btnCSV" disabled>CSV DL</button>
     </div>
+
+    <div class="status" id="status">状態: 停止中</div>
   </div>
 
-  <div class="content">
-    <div id="dual" class="dual row">
-      <!-- WAVE -->
-      <section id="panelWave" class="panel">
-        <div class="panelHeader">
-          <h2>波形</h2>
-          <div class="controls">
-            <div class="controlRow">
-              <label for="waveWinRange">波形時間窓（N秒）</label>
-              <input id="waveWinRange" type="range" min="0.05" max="1.0" step="0.01" value="1.0" />
-              <input id="waveWinNum" type="number" min="0.05" max="1.0" step="0.01" value="1.0" style="width:86px" />
-            </div>
-            <div class="controlRow">
-              <button id="btnWaveABClear">A/B解除</button>
-              <button id="btnWaveCSV" disabled>CSV</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="canvasWrap" id="wrapWave">
-          <canvas id="cvWave" width="1200" height="360"></canvas>
-          <canvas class="overlayRect" id="ovWave" width="1200" height="360"></canvas>
-          <div class="infoBubble" id="bubbleWave"></div>
-        </div>
-
-        <div class="footer">
-          <div class="delta" id="deltaWave">Δ: —</div>
-          <div class="small" id="descWave">
-            状態：<span id="waveStateText">停止中</span> / 操作：Pause中のみズーム・2点選択が有効（ただしズームリセットは常に有効）。
-          </div>
-        </div>
-      </section>
-
-      <!-- SPECTRUM -->
-      <section id="panelSpec" class="panel">
-        <div class="panelHeader">
-          <h2>音響スペクトル</h2>
-          <div class="controls" id="specControls">
-            <!-- 1st row (short, aligned) -->
-            <div class="controlRow">
-              <label for="fftSel">FFTサイズ</label>
-              <select id="fftSel">
-                <option>1024</option><option>2048</option><option>4096</option>
-                <option selected>8192</option>
-                <option>16384</option><option>32768</option>
-              </select>
-
-              <button id="btnSpecYAxis">縦軸：規格化</button>
-              <button id="btnSpecABClear">A/B解除</button>
-              <button id="btnSpecCSV" disabled>CSV</button>
-            </div>
-
-            <!-- 2nd row (range) -->
-            <div class="controlRow">
-              <label>スペクトル周波数　最小:</label>
-              <select id="minPreset">
-                <option>0</option><option>20</option><option>100</option>
-                <option selected>200</option><option>300</option><option>400</option>
-                <option>500</option><option>1000</option><option value="custom">任意入力</option>
-              </select>
-              <input id="minHz" type="number" min="0" step="1" value="200" style="width:90px" />
-              <label>最大:</label>
-              <select id="maxPreset">
-                <option>1000</option><option selected>1500</option><option>2000</option>
-                <option>5000</option><option>10000</option><option>20000</option>
-                <option value="custom">任意入力</option>
-              </select>
-              <input id="maxHz" type="number" min="1" step="1" value="1500" style="width:90px" />
-            </div>
-          </div>
-        </div>
-
-        <div class="canvasWrap" id="wrapSpec">
-          <canvas id="cvSpec" width="1200" height="360"></canvas>
-          <canvas class="overlayRect" id="ovSpec" width="1200" height="360"></canvas>
-          <div class="infoBubble" id="bubbleSpec"></div>
-        </div>
-
-        <div class="footer">
-          <div class="delta" id="deltaSpec">Δ: —</div>
-          <div class="small" id="descSpec">
-            状態：<span id="specStateText">停止中</span> / Pause中はスペクトルをスナップショット固定（クリックしても変化しません）。
-          </div>
-        </div>
-      </section>
+  <div class="row" id="row">
+    <div class="card" id="cardWave">
+      <div class="cardTitle">
+        <span>① 波形</span>
+        <span class="pill">ms 目盛：上段</span>
+      </div>
+      <div class="canvasWrap">
+        <canvas id="wave"></canvas>
+      </div>
+      <div class="delta" id="deltaWave">
+        <small>Δ（波形）：Pause中にA/Bを選択すると表示されます</small>
+      </div>
     </div>
 
-    <!-- Explanation / status below ALL graphs -->
-    <div class="status">
-      <div class="small" id="statusLine">
-        <b>注意：</b>このアプリは <b>HTTPS</b> または <b>localhost</b> 上でのみマイクが使えます。マイク許可を拒否した場合は取得できません。
+    <div class="card" id="cardSpec">
+      <div class="cardTitle">
+        <span>② 音響スペクトル</span>
+        <span class="pill">Hz 目盛：上段 / PEAK：目盛の下</span>
       </div>
-      <div class="small" id="helpLine" style="margin-top:6px">
-        <b>操作メモ：</b>
-        Startでマイク開始 / Pauseで表示停止（データ保持）/ Resetで完全初期化。
-        Pause中はドラッグでズーム、<span class="kbd">Z</span>で2点選択へ切替。<span class="kbd">Esc</span>でカーソル情報とA/B解除。
-        CSVはPause中のみ（<span class="kbd">V</span>）。
+      <div class="canvasWrap">
+        <canvas id="spec"></canvas>
+      </div>
+      <div class="delta" id="deltaSpec">
+        <small>Δ（音響スペクトル）：Pause中にA/Bを選択すると表示されます</small>
       </div>
     </div>
   </div>
-</div>
 
 <script>
 (() => {
-  // ---------- Utilities ----------
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const lerp = (a,b,t) => a + (b-a)*t;
-  const nice125 = (raw) => {
-    // 1-2-5 series for tick spacing (raw>0)
-    const p = Math.pow(10, Math.floor(Math.log10(raw)));
-    const n = raw / p;
-    let m = 1;
-    if (n <= 1) m = 1;
-    else if (n <= 2) m = 2;
-    else if (n <= 5) m = 5;
-    else m = 10;
-    return m * p;
-  };
-  const formatHz = (hz) => (hz >= 1000) ? (hz/1000).toFixed(hz%1000===0?0:1)+"k" : String(Math.round(hz));
-  const nowTs = () => new Date().toISOString().replace(/[:.]/g,'-');
-
-  function isTextInputFocused(){
-    const el = document.activeElement;
-    if (!el) return false;
-    const tag = el.tagName?.toLowerCase();
-    return tag === 'input' || tag === 'select' || tag === 'textarea' || el.isContentEditable;
-  }
-
-  // ---------- DOM ----------
-  const app = document.getElementById('app');
-  const dual = document.getElementById('dual');
-  const panelWave = document.getElementById('panelWave');
-  const panelSpec = document.getElementById('panelSpec');
-
+  // ========= DOM =========
   const btnStart = document.getElementById('btnStart');
   const btnPause = document.getElementById('btnPause');
   const btnReset = document.getElementById('btnReset');
+  const btnTheme = document.getElementById('btnTheme');
 
   const tabBoth = document.getElementById('tabBoth');
   const tabWave = document.getElementById('tabWave');
   const tabSpec = document.getElementById('tabSpec');
 
   const btnMode = document.getElementById('btnMode');
-  const btnTheme = document.getElementById('btnTheme');
+  const modePill = document.getElementById('modePill');
+  const btnZoomReset = document.getElementById('btnZoomReset');
 
-  const pillState = document.getElementById('pillState');
+  const secRange = document.getElementById('secRange');
+  const secNum   = document.getElementById('secNum');
+  const fftS = document.getElementById('fft');
 
-  const waveWinRange = document.getElementById('waveWinRange');
-  const waveWinNum   = document.getElementById('waveWinNum');
+  const fminPreset = document.getElementById('fminPreset');
+  const fmaxPreset = document.getElementById('fmaxPreset');
+  const fminCustom = document.getElementById('fminCustom');
+  const fmaxCustom = document.getElementById('fmaxCustom');
 
-  const fftSel = document.getElementById('fftSel');
-  const btnSpecYAxis = document.getElementById('btnSpecYAxis');
-  const minPreset = document.getElementById('minPreset');
-  const maxPreset = document.getElementById('maxPreset');
-  const minHzIn = document.getElementById('minHz');
-  const maxHzIn = document.getElementById('maxHz');
+  const btnResetABWave = document.getElementById('btnResetABWave');
+  const btnResetABSpec = document.getElementById('btnResetABSpec');
+  const btnCSV = document.getElementById('btnCSV');
 
-  const btnWaveABClear = document.getElementById('btnWaveABClear');
-  const btnSpecABClear = document.getElementById('btnSpecABClear');
-  const btnWaveCSV = document.getElementById('btnWaveCSV');
-  const btnSpecCSV = document.getElementById('btnSpecCSV');
-
-  const cvWave = document.getElementById('cvWave');
-  const ovWave = document.getElementById('ovWave');
-  const wrapWave = document.getElementById('wrapWave');
-  const bubbleWave = document.getElementById('bubbleWave');
-
-  const cvSpec = document.getElementById('cvSpec');
-  const ovSpec = document.getElementById('ovSpec');
-  const wrapSpec = document.getElementById('wrapSpec');
-  const bubbleSpec = document.getElementById('bubbleSpec');
+  const srPill = document.getElementById('srPill');
+  const status = document.getElementById('status');
 
   const deltaWave = document.getElementById('deltaWave');
   const deltaSpec = document.getElementById('deltaSpec');
 
-  const waveStateText = document.getElementById('waveStateText');
-  const specStateText = document.getElementById('specStateText');
+  const cardWave = document.getElementById('cardWave');
+  const cardSpec = document.getElementById('cardSpec');
 
-  // ---------- App State ----------
-  const State = {
-    STOPPED: 'stopped',
-    RUNNING: 'running',
-    PAUSED: 'paused',
-  };
+  const waveC = document.getElementById('wave');
+  const specC = document.getElementById('spec');
+  const wctx = waveC.getContext('2d');
+  const sctx = specC.getContext('2d');
 
-  const Mode = {
-    ZOOM: 'zoom',
-    PICK: 'pick', // 2 points
-  };
+  // ========= Audio =========
+  let audioCtx = null, analyser = null, src = null, stream = null;
+  let rafId = null;
 
-  let appState = State.STOPPED;
-  let mode = Mode.ZOOM;
+  let isRunning = false;  // audio active
+  let isPaused = false;   // drawing paused
 
-  // Theme
-  let theme = 'light';
-
-  // View
-  let view = 'both'; // 'both' | 'wave' | 'spec'
-
-  // Audio
-  let audioCtx = null;
-  let mediaStream = null;
-  let sourceNode = null;
-  let analyser = null;
-  let workletNode = null;
-  let sampleRate = 48000;
-
-  // Ring buffer (waveform)
-  const RB_SECONDS = 6; // keep enough even if window is 1s; also for smooth
-  let ring = null; // Float32Array
-  let ringLen = 0;
-  let ringWrite = 0;
-  let ringCount = 0; // total samples written (for timeline)
-  let lastChunkTs = 0;
-
-  // Snapshot buffers for PAUSE
-  let snapWave = null;   // Float32Array of last (window) samples (from ring) at pause time
-  let snapWaveStartCount = 0; // sample count at start of snapshot
-  let snapSpec = null;   // spectrum y array in current y-mode (aligned to freq bins) at pause time
-  let snapSpecMeta = null; // {fftSize, minHz, maxHz, yMode}
-
-  // FFT / spectrum
-  let fftSize = 8192;
-  let yMode = 'norm'; // 'norm' | 'db'
-  let freqBins = null;      // Float32Array for getFloatFrequencyData
-  let freqBinsByte = null;  // Uint8Array for getByteFrequencyData
-  let specPeaks = [];       // for tick peak display (computed each draw)
-
-  // waveform window (seconds)
-  let waveWindowSec = 1.0;
-
-  // Zoom states
-  const waveZoom = {
-    // x in seconds (0..windowSec), y in amplitude
-    active: false,
-    x0: 0, x1: 1,
-    y0: -1, y1: 1,
-  };
-  const specZoom = {
-    active: false,
-    x0: 200, x1: 1500, // Hz
-  };
-
-  // Cursor + A/B pick per panel
-  const cursorWave = {active:false, x:0, y:0, tms:0, amp:0};
-  const cursorSpec = {active:false, x:0, y:0, hz:0, val:0};
-
-  const ABWave = {A:null, B:null}; // {tms, amp}
-  const ABSpec = {A:null, B:null}; // {hz, val}
-
-  // Interaction
-  let rafId = 0;
-
-  // Drag selection overlay
-  const drag = {
-    active:false,
-    kind:null, // 'zoom' | 'pan'
-    target:null, // 'wave' | 'spec'
-    x0:0, y0:0, x1:0, y1:0,
-  };
-
-  // Touch gesture (pinch / pan)
-  const pointers = new Map(); // id -> {x,y}
-  let gesture = null; // {target, startDist, startCenter, startZoom}
-
-  // ---------- Canvas Setup ----------
-  function resizeCanvases(){
-    // match CSS size to internal resolution for crisp rendering
-    const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
-    for (const [wrap, cv, ov] of [[wrapWave, cvWave, ovWave],[wrapSpec, cvSpec, ovSpec]]){
-      const rect = wrap.getBoundingClientRect();
-      const w = Math.max(320, Math.floor(rect.width));
-      const h = Math.max(220, Math.floor(rect.height));
-      cv.width = Math.floor(w * dpr);
-      cv.height = Math.floor(h * dpr);
-      cv.style.width = w+'px';
-      cv.style.height = h+'px';
-      ov.width = cv.width;
-      ov.height = cv.height;
-      ov.style.width = cv.style.width;
-      ov.style.height = cv.style.height;
-    }
-  }
-  window.addEventListener('resize', () => {
-    resizeCanvases();
-    drawOnce(); // redraw static
+  // ========= Config =========
+  const FFT_LIST = [1024, 2048, 4096, 8192, 16384, 32768];
+  FFT_LIST.forEach(n => {
+    const opt = document.createElement('option');
+    opt.value = String(n);
+    opt.textContent = String(n);
+    if (n === 8192) opt.selected = true; // default
+    fftS.appendChild(opt);
   });
 
-  // ---------- View / Layout ----------
-  function setView(v){
-    view = v;
-    tabBoth.classList.toggle('active', v==='both');
-    tabWave.classList.toggle('active', v==='wave');
-    tabSpec.classList.toggle('active', v==='spec');
+  const FMIN_LIST = [0, 20, 100, 200, 300, 400, 500, 1000, '任意'];
+  const FMAX_LIST = [1000, 1500, 2000, 5000, 10000, 20000, '任意']; // +1.5k
 
-    panelWave.style.display = (v==='spec') ? 'none' : '';
-    panelSpec.style.display = (v==='wave') ? 'none' : '';
+  function fillSelect(sel, list, defaultValue){
+    sel.innerHTML = '';
+    for (const v of list){
+      const opt = document.createElement('option');
+      opt.value = String(v);
+      opt.textContent = (typeof v === 'number') ? (v >= 1000 ? `${v/1000}k` : `${v}`) : String(v);
+      sel.appendChild(opt);
+    }
+    sel.value = String(defaultValue);
+  }
+  fillSelect(fminPreset, FMIN_LIST, 200);
+  fillSelect(fmaxPreset, FMAX_LIST, 1500);
 
-    // sizing: single view uses big canvas
-    panelWave.classList.toggle('big', v==='wave');
-    panelSpec.classList.toggle('big', v==='spec');
+  // ========= Theme =========
+  function setTheme(dark){ document.documentElement.dataset.theme = dark ? 'dark' : 'light'; }
+  setTheme(false);
 
-    // simultaneous: PC row, mobile column
-    dual.classList.toggle('row', v==='both');
-
-    resizeCanvases();
-    drawOnce();
+  // ========= View =========
+  let view = 'both'; // both | wave | spec
+  function setActiveTab(which){
+    view = which;
+    tabBoth.classList.toggle('active', which === 'both');
+    tabWave.classList.toggle('active', which === 'wave');
+    tabSpec.classList.toggle('active', which === 'spec');
+    cardWave.classList.toggle('hidden', which === 'spec');
+    cardSpec.classList.toggle('hidden', which === 'wave');
+    resizeAll();
+    redrawAll();
   }
 
-  tabBoth.addEventListener('click', () => setView('both'));
-  tabWave.addEventListener('click', () => setView('wave'));
-  tabSpec.addEventListener('click', () => setView('spec'));
-
-  // ---------- Theme ----------
-  function setTheme(t){
-    theme = t;
-    app.setAttribute('data-theme', t);
-    btnTheme.textContent = (t==='light') ? 'ダークへ' : 'ライトへ';
-    drawOnce();
+  function resizeCanvasToCSS(canvas){
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width  = Math.max(1, Math.round(rect.width * dpr));
+    canvas.height = Math.max(1, Math.round(rect.height * dpr));
   }
-  btnTheme.addEventListener('click', () => setTheme(theme==='light' ? 'dark' : 'light'));
+  function resizeAll(){
+    const hBoth = 240, hSingle = 360;
+    if (view === 'both'){
+      waveC.style.height = hBoth + 'px';
+      specC.style.height = hBoth + 'px';
+    } else if (view === 'wave'){
+      waveC.style.height = hSingle + 'px';
+    } else {
+      specC.style.height = hSingle + 'px';
+    }
+    resizeCanvasToCSS(waveC);
+    resizeCanvasToCSS(specC);
+  }
+  window.addEventListener('resize', () => { resizeAll(); redrawAll(); });
 
-  // ---------- Mode toggle (show "switch-to") ----------
+  // ========= Data =========
+  let ring = null;
+  let ringWrite = 0;
+
+  let snapWave = null;
+  let snapSR = 0;
+  let snapFFT = 0;
+
+  let snapFreqDb = null;
+  let snapFreqHz = null;
+
+  let cursorWave = null;
+  let cursorSpec = null;
+  let peak = null;
+
+  // ========= Spectrum range / zoom =========
+  let fminHz = 200;
+  let fmaxHz = 1500;
+
+  let waveZoom = {t0:0, t1:1};
+  let specZoom = {f0:200, f1:1500};
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+  // ========= Mode =========
+  let mode = 'zoom'; // 'zoom' | 'ab'
+  let waveAB = {A:null, B:null};
+  let specAB = {A:null, B:null};
+
   function setMode(m){
     mode = m;
-    btnMode.textContent = (m===Mode.ZOOM) ? '2点選択へ' : 'ズームへ';
-    // When switching, keep A/B as is; user can Esc to clear
+    modePill.textContent = `モード: ${m === 'zoom' ? 'ズーム' : '2点選択'}`;
+    redrawAll();
   }
-  btnMode.addEventListener('click', () => setMode(mode===Mode.ZOOM ? Mode.PICK : Mode.ZOOM));
+  setMode('zoom');
 
-  // ---------- Controls: waveform window ----------
-  function setWaveWindow(sec){
-    sec = clamp(sec, 0.05, 1.0);
-    waveWindowSec = sec;
-    waveWinRange.value = sec.toFixed(2);
-    waveWinNum.value = sec.toFixed(2);
+  // ========= UI state helpers =========
+  function applyButtonStates(){
+    // Start: only when stopped
+    btnStart.disabled = isRunning;
+    // Pause: only when running
+    btnPause.disabled = !isRunning;
+    btnPause.textContent = isPaused ? 'Resume' : 'Pause';
+    // Reset: only when running or paused (same meaning)
+    btnReset.disabled = !isRunning;
 
-    // When window changes, reset wave zoom x if active to keep valid
-    if (waveZoom.active){
-      waveZoom.x0 = clamp(waveZoom.x0, 0, waveWindowSec);
-      waveZoom.x1 = clamp(waveZoom.x1, 0, waveWindowSec);
-      if (Math.abs(waveZoom.x1 - waveZoom.x0) < 1e-6) resetWaveZoom();
-    } else {
-      waveZoom.x0 = 0; waveZoom.x1 = waveWindowSec;
+    // Pause-only tools
+    const pauseOnly = isPaused && isRunning;
+    btnZoomReset.disabled = !pauseOnly;
+    btnCSV.disabled = !pauseOnly;
+    btnResetABWave.disabled = !pauseOnly;
+    btnResetABSpec.disabled = !pauseOnly;
+  }
+
+  function setStatus(){
+    const st = (!isRunning) ? '停止中' : (isPaused ? '一時停止中' : '計測中');
+    const peakText = peak ? `${peak.fHz.toFixed(1)} Hz  (${peak.norm.toFixed(1)}%)` : '-';
+    const cw = cursorWave ? `t=${(cursorWave.tSec*1000).toFixed(2)} ms, amp=${cursorWave.amp.toFixed(4)}` : '-';
+    const cs = cursorSpec ? `f=${cursorSpec.fHz.toFixed(1)} Hz, ${cursorSpec.norm.toFixed(2)}%, ${cursorSpec.db.toFixed(1)} dB` : '-';
+
+    status.textContent =
+`状態: ${st}
+ピーク: ${peakText}
+カーソル（波形）: ${cw}
+カーソル（スペクトル）: ${cs}
+ショートカット:
+S=Start, P=Pause/Resume, R=Reset, Z=ズーム/2点選択, W=波形, F=スペクトル, B=同時表示, V=CSV(停止中のみ), Esc=解除
+メモ:
+・Pause中のみ、ズーム・2点選択・CSV DL・A/Bが使えます
+・ズームモード（Pause中）:
+  PC: ドラッグ=拡大 / Shift+ドラッグ=移動 / ダブルクリック=リセット
+  スマホ: ピンチ=拡大縮小 / 2本指ドラッグ=移動
+・2点選択モード（Pause中）: A→Bの順にタップ（Δは各グラフ下）`;
+  }
+
+  // ========= ticks/grid =========
+  function tickCountForWidth(px){ return (px < 520) ? 3 : 5; }
+
+  function drawTopTicks(ctx, W, H, labels){
+    ctx.save();
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim();
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
+    ctx.lineWidth = 1;
+
+    const topH = Math.min(30, Math.max(22, Math.round(H*0.12)));
+    ctx.beginPath();
+    ctx.moveTo(0, topH);
+    ctx.lineTo(W, topH);
+    ctx.stroke();
+
+    ctx.font = `${Math.max(12, Math.round(topH*0.45))}px system-ui`;
+    ctx.textBaseline = 'middle';
+
+    for (const l of labels){
+      ctx.beginPath();
+      ctx.moveTo(l.x, topH);
+      ctx.lineTo(l.x, topH + 6);
+      ctx.stroke();
+
+      const tw = ctx.measureText(l.text).width;
+      const x = clamp(l.x - tw/2, 2, W - tw - 2);
+      ctx.fillText(l.text, x, Math.round(topH*0.55));
     }
+    ctx.restore();
+    return topH;
+  }
 
-    // If paused, refresh snapshot to match new window (from paused snapshot source if possible)
-    if (appState === State.PAUSED){
-      // regenerate snapshot from ring at pause time range if ring still has it
-      snapWave = getWaveWindowFromRing(); // best effort
+  function clearAndGrid(ctx, W, H, topStripH){
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    const grid = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,W,H);
+
+    ctx.save();
+    ctx.strokeStyle = grid;
+    ctx.lineWidth = 1;
+
+    const innerTop = topStripH;
+    const innerH = H - innerTop;
+
+    for (let i=1; i<4; i++){
+      const y = innerTop + (innerH*i)/4;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
     }
-    drawOnce();
-  }
-  waveWinRange.addEventListener('input', () => setWaveWindow(parseFloat(waveWinRange.value)));
-  waveWinNum.addEventListener('change', () => setWaveWindow(parseFloat(waveWinNum.value)));
-
-  // ---------- Spectrum controls ----------
-  function setFFTSize(n){
-    fftSize = n|0;
-    if (analyser) analyser.fftSize = fftSize;
-    // Allocate arrays
-    if (analyser){
-      freqBins = new Float32Array(analyser.frequencyBinCount);
-      freqBinsByte = new Uint8Array(analyser.frequencyBinCount);
+    for (let i=1; i<10; i++){
+      const x = (W*i)/10;
+      ctx.beginPath(); ctx.moveTo(x,innerTop); ctx.lineTo(x,H); ctx.stroke();
     }
-    // Snapshot invalid
-    snapSpec = null;
-    snapSpecMeta = null;
-    if (appState === State.PAUSED) captureSpectrumSnapshot(); // re-snapshot with new FFT size if possible
-    drawOnce();
-  }
-  fftSel.addEventListener('change', () => setFFTSize(parseInt(fftSel.value,10)));
-
-  function setSpecRange(minHz, maxHz){
-    minHz = Math.max(0, Math.floor(minHz));
-    maxHz = Math.max(minHz+1, Math.floor(maxHz));
-    // No Nyquist option; clamp to available if we know sr
-    const nyq = sampleRate/2;
-    maxHz = Math.min(maxHz, Math.floor(nyq));
-    specZoom.active = false;
-    specZoom.x0 = minHz;
-    specZoom.x1 = maxHz;
-    minHzIn.value = String(minHz);
-    maxHzIn.value = String(maxHz);
-
-    // Snapshot invalid (range affects CSV meta; but spectrum data still same bins)
-    if (appState === State.PAUSED) captureSpectrumSnapshot();
-    drawOnce();
+    ctx.restore();
   }
 
-  minPreset.addEventListener('change', () => {
-    if (minPreset.value !== 'custom') setSpecRange(parseFloat(minPreset.value), parseFloat(maxHzIn.value));
-    else minHzIn.focus();
-  });
-  maxPreset.addEventListener('change', () => {
-    if (maxPreset.value !== 'custom') setSpecRange(parseFloat(minHzIn.value), parseFloat(maxPreset.value));
-    else maxHzIn.focus();
-  });
-  minHzIn.addEventListener('change', () => setSpecRange(parseFloat(minHzIn.value), parseFloat(maxHzIn.value)));
-  maxHzIn.addEventListener('change', () => setSpecRange(parseFloat(minHzIn.value), parseFloat(maxHzIn.value)));
-
-  function setYAxisMode(next){
-    yMode = next;
-    btnSpecYAxis.textContent = (yMode==='norm') ? '縦軸：規格化' : '縦軸：dB';
-    // Must link: display, peak, A/B Δ, CSV
-    if (appState === State.PAUSED) captureSpectrumSnapshot();
-    // Recompute AB values to match current mode using stored bin values? We stored val, so keep; user can re-pick.
-    drawOnce();
+  // ========= waveform =========
+  function timeWinSec(){
+    const v = parseFloat(secNum.value || "1");
+    return clamp(v, 0.05, 5);
   }
-  btnSpecYAxis.addEventListener('click', () => setYAxisMode(yMode==='norm' ? 'db' : 'norm'));
-
-  // ---------- Zoom resets (allowed anytime) ----------
-  function resetWaveZoom(){
-    waveZoom.active = false;
-    waveZoom.x0 = 0; waveZoom.x1 = waveWindowSec;
-    waveZoom.y0 = -1; waveZoom.y1 = 1;
-  }
-  function resetSpecZoom(){
-    specZoom.active = false;
-    // keep range from inputs as base
-    specZoom.x0 = parseFloat(minHzIn.value);
-    specZoom.x1 = parseFloat(maxHzIn.value);
-  }
-  function clearAllCursorsAB(){
-    cursorWave.active = false;
-    cursorSpec.active = false;
-    ABWave.A = ABWave.B = null;
-    ABSpec.A = ABSpec.B = null;
-    bubbleWave.style.display = 'none';
-    bubbleSpec.style.display = 'none';
-    updateDeltas();
+  function allocRing(){
+    if (!audioCtx) return;
+    const sr = audioCtx.sampleRate;
+    const n = Math.max(1, Math.floor(sr * timeWinSec()));
+    ring = new Float32Array(n);
+    ringWrite = 0;
+    waveZoom = {t0:0, t1: timeWinSec()};
   }
 
-  // ---------- State UI ----------
-  function setAppState(s){
-    appState = s;
-    const text = (s===State.STOPPED) ? '停止中' : (s===State.RUNNING ? '測定中' : 'Pause中');
-    pillState.textContent = text;
-    waveStateText.textContent = text;
-    specStateText.textContent = text;
+  function waveValueAt(canvasX){
+    if (!ring || !audioCtx) return null;
+    const W = waveC.width;
+    const win = timeWinSec();
+    const frac = clamp(canvasX / W, 0, 1);
+    const t = waveZoom.t0 + frac * (waveZoom.t1 - waveZoom.t0);
 
-    btnPause.textContent = (s===State.PAUSED) ? 'Resume' : 'Pause';
-    btnStart.disabled = (s===State.RUNNING || s===State.PAUSED); // Start only from stopped
-    btnPause.disabled = (s===State.STOPPED);
-    btnWaveCSV.disabled = !(s===State.PAUSED);
-    btnSpecCSV.disabled = !(s===State.PAUSED);
+    const idxInWindow = Math.round((t / win) * (ring.length - 1));
+    const idxRing = (ringWrite + idxInWindow) % ring.length;
+    return { tSec: t, amp: ring[idxRing] };
+  }
+  function waveXFromTime(tSec){
+    const W = waveC.width;
+    const frac = (tSec - waveZoom.t0) / (waveZoom.t1 - waveZoom.t0);
+    return clamp(frac, 0, 1) * W;
+  }
 
-    // During running, per spec (案1): auto clear zoom on Start/Resume
-    if (s === State.RUNNING){
-      resetWaveZoom();
-      resetSpecZoom();
-      // also clear overlay drag
-      drag.active = false;
-      clearOverlay('wave'); clearOverlay('spec');
+  function drawWave(){
+    const W = waveC.width, H = waveC.height;
+    const nTicks = tickCountForWidth(W / (window.devicePixelRatio || 1));
+
+    const t0 = waveZoom.t0, t1 = waveZoom.t1;
+    const labels = [];
+    for (let i=0; i<nTicks; i++){
+      const frac = (nTicks === 1) ? 0 : (i/(nTicks-1));
+      const t = t0 + frac*(t1-t0);
+      labels.push({ x: frac*W, text: `${Math.round(t*1000)} ms` });
     }
-    drawOnce();
-  }
+    const topStrip = drawTopTicks(wctx, W, H, labels);
+    clearAndGrid(wctx, W, H, topStrip);
 
-  // ---------- AudioWorklet (single-file) ----------
-  async function initAudio(){
-    // Worklet to forward microphone samples efficiently.
-    const workletCode = `
-      class TapProcessor extends AudioWorkletProcessor {
-        constructor(){
-          super();
-          this._downmix = new Float32Array(128);
-        }
-        process(inputs){
-          const input = inputs[0];
-          if (!input || input.length === 0) return true;
-          const ch0 = input[0];
-          if (!ch0) return true;
-          // post a copy (small chunk)
-          this.port.postMessage(ch0.slice(0));
-          return true;
-        }
+    if (!ring) return;
+
+    const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim();
+    const muted = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim();
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    const abACol = getComputedStyle(document.documentElement).getPropertyValue('--abA').trim();
+    const abBCol = getComputedStyle(document.documentElement).getPropertyValue('--abB').trim();
+
+    const innerTop = topStrip;
+    const innerH = H - innerTop;
+
+    // center line
+    wctx.save();
+    wctx.strokeStyle = muted;
+    wctx.globalAlpha = 0.6;
+    wctx.lineWidth = 1;
+    wctx.beginPath();
+    wctx.moveTo(0, innerTop + innerH/2);
+    wctx.lineTo(W, innerTop + innerH/2);
+    wctx.stroke();
+    wctx.restore();
+
+    // running: min/max per pixel
+    // paused: if view <= threshold => full polyline; else min/max
+    const zSpan = (waveZoom.t1 - waveZoom.t0);
+    const sr = audioCtx ? audioCtx.sampleRate : 48000;
+    const pointsInView = Math.max(2, Math.floor(sr * zSpan));
+    const FULL_POLY_THRESHOLD = 8000;
+    const useFullPolyline = (isPaused && pointsInView <= FULL_POLY_THRESHOLD);
+
+    wctx.save();
+    wctx.strokeStyle = fg;
+    wctx.lineWidth = 2;
+
+    if (useFullPolyline){
+      wctx.beginPath();
+      const win = timeWinSec();
+      const startIdx = Math.floor((waveZoom.t0 / win) * (ring.length - 1));
+      const endIdx   = Math.floor((waveZoom.t1 / win) * (ring.length - 1));
+      const spanIdx = Math.max(1, endIdx - startIdx);
+
+      for (let i=0; i<=spanIdx; i++){
+        const idxInWindow = startIdx + i;
+        const idxRing = (ringWrite + idxInWindow) % ring.length;
+        const v = ring[idxRing];
+        const x = (i/spanIdx) * W;
+        const y = innerTop + (0.5 - v/2) * innerH;
+        if (i===0) wctx.moveTo(x,y); else wctx.lineTo(x,y);
       }
-      registerProcessor('tap-processor', TapProcessor);
-    `;
-    const blob = new Blob([workletCode], {type:'application/javascript'});
-    const url = URL.createObjectURL(blob);
+      wctx.stroke();
+    } else {
+      const px = W;
+      const win = timeWinSec();
+      const startT = waveZoom.t0;
+      const endT = waveZoom.t1;
+      const spanT = Math.max(1e-9, endT - startT);
+
+      for (let x=0; x<px; x++){
+        const frac0 = x / px;
+        const frac1 = (x+1) / px;
+        const tA = startT + frac0 * spanT;
+        const tB = startT + frac1 * spanT;
+
+        const iA = Math.floor((tA / win) * (ring.length - 1));
+        const iB = Math.floor((tB / win) * (ring.length - 1));
+        const ia = clamp(iA, 0, ring.length-1);
+        const ib = clamp(iB, 0, ring.length-1);
+
+        let mn = Infinity, mx = -Infinity;
+        for (let i=ia; i<=ib; i++){
+          const idxRing = (ringWrite + i) % ring.length;
+          const v = ring[idxRing];
+          if (v < mn) mn = v;
+          if (v > mx) mx = v;
+        }
+        if (!isFinite(mn) || !isFinite(mx)) continue;
+
+        const y1 = innerTop + (0.5 - mx/2) * innerH;
+        const y2 = innerTop + (0.5 - mn/2) * innerH;
+        wctx.beginPath();
+        wctx.moveTo(x+0.5, y1);
+        wctx.lineTo(x+0.5, y2);
+        wctx.stroke();
+      }
+    }
+    wctx.restore();
+
+    // cursor/A/B lines only in pause
+    if (isPaused && cursorWave){
+      const x = waveXFromTime(cursorWave.tSec);
+      wctx.save();
+      wctx.strokeStyle = accent;
+      wctx.lineWidth = 2;
+      wctx.globalAlpha = 0.9;
+      wctx.beginPath(); wctx.moveTo(x, innerTop); wctx.lineTo(x, H); wctx.stroke();
+      wctx.restore();
+    }
+    if (isPaused && waveAB.A){
+      const x = waveXFromTime(waveAB.A.tSec);
+      wctx.save(); wctx.strokeStyle = abACol; wctx.lineWidth = 2;
+      wctx.beginPath(); wctx.moveTo(x, innerTop); wctx.lineTo(x, H); wctx.stroke();
+      wctx.restore();
+    }
+    if (isPaused && waveAB.B){
+      const x = waveXFromTime(waveAB.B.tSec);
+      wctx.save(); wctx.strokeStyle = abBCol; wctx.lineWidth = 2;
+      wctx.beginPath(); wctx.moveTo(x, innerTop); wctx.lineTo(x, H); wctx.stroke();
+      wctx.restore();
+    }
+  }
+
+  // ========= spectrum =========
+  function getFminFmaxClamped(){
+    if (!audioCtx) return {fmin: fminHz, fmax: fmaxHz, nyq: 24000};
+    const nyq = audioCtx.sampleRate/2;
+    const fmin = clamp(fminHz, 0, nyq-1e-6);
+    const fmax = clamp(fmaxHz, fmin+1e-6, nyq);
+    return {fmin, fmax, nyq};
+  }
+  function specBinToHz(bin, bins){
+    const nyq = audioCtx ? audioCtx.sampleRate/2 : 24000;
+    return (bin/(bins-1)) * nyq;
+  }
+  function specHzToBin(fHz, bins){
+    const nyq = audioCtx ? audioCtx.sampleRate/2 : 24000;
+    return clamp(Math.round((fHz/nyq)*(bins-1)), 0, bins-1);
+  }
+  function specXFromHz(fHz){
+    const W = specC.width;
+    const frac = (fHz - specZoom.f0) / (specZoom.f1 - specZoom.f0);
+    return clamp(frac, 0, 1) * W;
+  }
+
+  function computeNormSpectrumInZoom(){
+    if (!analyser || !audioCtx) return {normArray:new Float32Array(0), hzArray:new Float32Array(0), dbArray:new Float32Array(0)};
+
+    const bins = analyser.frequencyBinCount;
+    const dbAll = new Float32Array(bins);
+    analyser.getFloatFrequencyData(dbAll);
+
+    snapFreqDb = dbAll;
+    snapFreqHz = new Float32Array(bins);
+    for (let i=0; i<bins; i++) snapFreqHz[i] = specBinToHz(i, bins);
+
+    const b0 = specHzToBin(specZoom.f0, bins);
+    const b1 = specHzToBin(specZoom.f1, bins);
+    const lo = Math.min(b0,b1);
+    const hi = Math.max(b0,b1);
+
+    const len = Math.max(2, hi - lo + 1);
+    const normArray = new Float32Array(len);
+    const hzArray = new Float32Array(len);
+    const dbArray = new Float32Array(len);
+
+    let maxAmp = 0;
+    const ampTmp = new Float32Array(len);
+
+    for (let i=0; i<len; i++){
+      const bin = lo + i;
+      const db = dbAll[bin];
+      const amp = Math.pow(10, db/20);
+      ampTmp[i] = amp;
+      if (amp > maxAmp) maxAmp = amp;
+      hzArray[i] = snapFreqHz[bin];
+      dbArray[i] = db;
+    }
+    if (maxAmp <= 0) maxAmp = 1;
+    for (let i=0; i<len; i++) normArray[i] = (ampTmp[i]/maxAmp) * 100;
+
+    let bestI = 0, bestN = -Infinity;
+    for (let i=0; i<len; i++){
+      if (normArray[i] > bestN){ bestN = normArray[i]; bestI = i; }
+    }
+    peak = { fHz: hzArray[bestI], norm: normArray[bestI], db: dbArray[bestI] };
+
+    return {normArray, hzArray, dbArray};
+  }
+
+  function specValueAt(canvasX){
+    if (!snapFreqDb || !snapFreqHz || !audioCtx) return null;
+    const W = specC.width;
+    const frac = clamp(canvasX / W, 0, 1);
+    const f = specZoom.f0 + frac * (specZoom.f1 - specZoom.f0);
+
+    const bins = snapFreqDb.length;
+    const bin = specHzToBin(f, bins);
+    const db = snapFreqDb[bin];
+
+    const {normArray, hzArray} = computeNormSpectrumInZoom();
+    const i = clamp(Math.round(frac * (normArray.length-1)), 0, normArray.length-1);
+    return { fHz: hzArray[i], norm: normArray[i], db };
+  }
+
+  function drawSpec(){
+    const W = specC.width, H = specC.height;
+    const nTicks = tickCountForWidth(W / (window.devicePixelRatio || 1));
+
+    const f0 = specZoom.f0, f1 = specZoom.f1;
+    const labels = [];
+    for (let i=0; i<nTicks; i++){
+      const frac = (nTicks === 1) ? 0 : (i/(nTicks-1));
+      const f = f0 + frac*(f1-f0);
+      const text = (f >= 1000) ? `${(f/1000).toFixed(f<10000?1:0)}k` : `${Math.round(f)}`;
+      labels.push({ x: frac*W, text: `${text} Hz` });
+    }
+    const topStrip = drawTopTicks(sctx, W, H, labels);
+    clearAndGrid(sctx, W, H, topStrip);
+
+    if (!analyser || !audioCtx) return;
+
+    const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim();
+    const peakCol = getComputedStyle(document.documentElement).getPropertyValue('--peak').trim();
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    const abACol = getComputedStyle(document.documentElement).getPropertyValue('--abA').trim();
+    const abBCol = getComputedStyle(document.documentElement).getPropertyValue('--abB').trim();
+    const muted = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim();
+
+    const innerTop = topStrip;
+    const innerH = H - innerTop;
+
+    const {normArray} = computeNormSpectrumInZoom();
+    if (normArray.length < 2) return;
+
+    sctx.save();
+    sctx.strokeStyle = fg;
+    sctx.lineWidth = 2;
+    sctx.beginPath();
+    for (let i=0; i<normArray.length; i++){
+      const x = (i/(normArray.length-1)) * W;
+      const y = innerTop + (1 - clamp(normArray[i]/100, 0, 1)) * innerH;
+      if (i===0) sctx.moveTo(x,y); else sctx.lineTo(x,y);
+    }
+    sctx.stroke();
+    sctx.restore();
+
+    sctx.save();
+    sctx.fillStyle = muted;
+    sctx.font = '12px system-ui';
+    sctx.fillText('100%', 6, innerTop + 14);
+    sctx.fillText('0%', 6, H - 8);
+    sctx.restore();
+
+    if (peak){
+      const x = specXFromHz(peak.fHz);
+
+      sctx.save();
+      sctx.strokeStyle = peakCol;
+      sctx.lineWidth = 2;
+      sctx.beginPath(); sctx.moveTo(x, innerTop); sctx.lineTo(x, H); sctx.stroke();
+
+      sctx.fillStyle = peakCol;
+      sctx.font = '12px system-ui';
+      const txt = `PEAK ${peak.fHz.toFixed(1)} Hz`;
+      const y = Math.round(innerTop * 0.88);
+      const tw = sctx.measureText(txt).width;
+      const xx = clamp(x - tw/2, 2, W - tw - 2);
+      sctx.fillText(txt, xx, y);
+      sctx.restore();
+    }
+
+    if (isPaused && cursorSpec){
+      const x = specXFromHz(cursorSpec.fHz);
+      sctx.save();
+      sctx.strokeStyle = accent;
+      sctx.lineWidth = 2;
+      sctx.globalAlpha = 0.9;
+      sctx.beginPath(); sctx.moveTo(x, innerTop); sctx.lineTo(x, H); sctx.stroke();
+      sctx.restore();
+    }
+
+    if (isPaused && specAB.A){
+      const x = specXFromHz(specAB.A.fHz);
+      sctx.save(); sctx.strokeStyle = abACol; sctx.lineWidth = 2;
+      sctx.beginPath(); sctx.moveTo(x, innerTop); sctx.lineTo(x, H); sctx.stroke();
+      sctx.restore();
+    }
+    if (isPaused && specAB.B){
+      const x = specXFromHz(specAB.B.fHz);
+      sctx.save(); sctx.strokeStyle = abBCol; sctx.lineWidth = 2;
+      sctx.beginPath(); sctx.moveTo(x, innerTop); sctx.lineTo(x, H); sctx.stroke();
+      sctx.restore();
+    }
+  }
+
+  // ========= Δ =========
+  function updateDelta(){
+    if (waveAB.A && waveAB.B){
+      const dt = (waveAB.B.tSec - waveAB.A.tSec);
+      const da = (waveAB.B.amp - waveAB.A.amp);
+      deltaWave.textContent =
+`Δt = ${(dt*1000).toFixed(3)} ms
+Δamp = ${da.toFixed(4)}
+A: ${Math.round(waveAB.A.tSec*1000)} ms / ${waveAB.A.amp.toFixed(4)}
+B: ${Math.round(waveAB.B.tSec*1000)} ms / ${waveAB.B.amp.toFixed(4)}`;
+    } else if (waveAB.A || waveAB.B){
+      const p = waveAB.B || waveAB.A;
+      deltaWave.textContent =
+`A/Bをもう1点選ぶとΔを表示します
+選択中: ${Math.round(p.tSec*1000)} ms / ${p.amp.toFixed(4)}`;
+    } else {
+      deltaWave.innerHTML = `<small>Δ（波形）：Pause中にA/Bを選択すると表示されます</small>`;
+    }
+
+    if (specAB.A && specAB.B){
+      const df = (specAB.B.fHz - specAB.A.fHz);
+      const dn = (specAB.B.norm - specAB.A.norm);
+      const ddb = (specAB.B.db - specAB.A.db);
+      deltaSpec.textContent =
+`Δf = ${df.toFixed(1)} Hz
+Δ(正規化) = ${dn.toFixed(2)} %
+ΔdB = ${ddb.toFixed(2)} dB
+A: ${specAB.A.fHz.toFixed(1)} Hz / ${specAB.A.norm.toFixed(2)}% / ${specAB.A.db.toFixed(1)} dB
+B: ${specAB.B.fHz.toFixed(1)} Hz / ${specAB.B.norm.toFixed(2)}% / ${specAB.B.db.toFixed(1)} dB`;
+    } else if (specAB.A || specAB.B){
+      const p = specAB.B || specAB.A;
+      deltaSpec.textContent =
+`A/Bをもう1点選ぶとΔを表示します
+選択中: ${p.fHz.toFixed(1)} Hz / ${p.norm.toFixed(2)}% / ${p.db.toFixed(1)} dB`;
+    } else {
+      deltaSpec.innerHTML = `<small>Δ（音響スペクトル）：Pause中にA/Bを選択すると表示されます</small>`;
+    }
+  }
+
+  // ========= loop =========
+  function updateRingFromAnalyser(){
+    if (!analyser || !ring) return;
+    const n = analyser.fftSize;
+    const tmp = new Float32Array(n);
+    analyser.getFloatTimeDomainData(tmp);
+    for (let i=0; i<n; i++){
+      ring[ringWrite] = tmp[i];
+      ringWrite = (ringWrite + 1) % ring.length;
+    }
+  }
+
+  function loop(){
+    if (!isRunning || isPaused) return;
+    updateRingFromAnalyser();
+    drawWave();
+    drawSpec();
+    setStatus();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function redrawAll(){
+    drawWave();
+    drawSpec();
+    updateDelta();
+    setStatus();
+  }
+
+  // ========= Start / Pause / Reset(=Stop) =========
+  async function start(){
+    if (isRunning) return;
+
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false }
+    });
 
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    sampleRate = audioCtx.sampleRate;
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = parseInt(fftS.value, 10);
+    analyser.smoothingTimeConstant = 0.2;
 
-    // ring buffer
-    ringLen = Math.floor(sampleRate * RB_SECONDS);
-    ring = new Float32Array(ringLen);
+    src = audioCtx.createMediaStreamSource(stream);
+    src.connect(analyser);
+
+    snapSR = audioCtx.sampleRate;
+    snapFFT = analyser.fftSize;
+    srPill.textContent = `sampleRate: ${snapSR} Hz`;
+
+    allocRing();
+    waveZoom = {t0:0, t1: timeWinSec()};
+
+    // spectrum base range
+    specZoom = {f0: fminHz, f1: fmaxHz};
+
+    isRunning = true;
+    isPaused = false;
+
+    waveAB = {A:null, B:null};
+    specAB = {A:null, B:null};
+    cursorWave = null;
+    cursorSpec = null;
+    peak = null;
+
+    applyButtonStates();
+    redrawAll();
+
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function pause(){
+    if (!isRunning || isPaused) return;
+    isPaused = true;
+
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+
+    // snapshot waveform
+    if (ring){
+      const n = ring.length;
+      snapWave = new Float32Array(n);
+      for (let i=0; i<n; i++){
+        const idx = (ringWrite + i) % n;
+        snapWave[i] = ring[idx];
+      }
+    }
+    snapSR = audioCtx.sampleRate;
+    snapFFT = analyser.fftSize;
+
+    applyButtonStates();
+    redrawAll();
+  }
+
+  function resume(){
+    if (!isRunning || !isPaused) return;
+    isPaused = false;
+
+    cursorWave = null;
+    cursorSpec = null;
+
+    applyButtonStates();
+    redrawAll();
+
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function resetAll(){
+    // Reset = Stop + full init
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+
+    if (stream){
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    if (audioCtx){
+      audioCtx.close();
+      audioCtx = null;
+    }
+    analyser = null;
+    src = null;
+
+    isRunning = false;
+    isPaused = false;
+
+    ring = null;
     ringWrite = 0;
-    ringCount = 0;
 
-    await audioCtx.audioWorklet.addModule(url);
-    URL.revokeObjectURL(url);
+    snapWave = null;
+    snapFreqDb = null;
+    snapFreqHz = null;
 
-    // get mic
-    mediaStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false
+    cursorWave = null;
+    cursorSpec = null;
+    peak = null;
+
+    waveAB = {A:null, B:null};
+    specAB = {A:null, B:null};
+
+    waveZoom = {t0:0, t1: timeWinSec()};
+    specZoom = {f0: fminHz, f1: fmaxHz};
+
+    srPill.textContent = 'sampleRate: -';
+
+    applyButtonStates();
+    redrawAll();
+  }
+
+  // ========= UI =========
+  btnStart.addEventListener('click', async () => {
+    try{ await start(); }
+    catch(e){
+      console.error(e);
+      alert('マイクの許可が必要です（HTTPS で開いてください）。');
+    }
+  });
+
+  btnPause.addEventListener('click', () => {
+    if (!isRunning) return;
+    if (!isPaused) pause();
+    else resume();
+  });
+
+  btnReset.addEventListener('click', resetAll);
+
+  btnTheme.addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme !== 'dark';
+    setTheme(dark);
+    redrawAll();
+  });
+
+  tabBoth.addEventListener('click', () => setActiveTab('both'));
+  tabWave.addEventListener('click', () => setActiveTab('wave'));
+  tabSpec.addEventListener('click', () => setActiveTab('spec'));
+
+  btnMode.addEventListener('click', () => setMode(mode === 'zoom' ? 'ab' : 'zoom'));
+
+  btnZoomReset.addEventListener('click', () => {
+    if (!isPaused) return;
+    waveZoom = {t0:0, t1: timeWinSec()};
+    specZoom = {f0: fminHz, f1: fmaxHz};
+    cursorWave = null;
+    cursorSpec = null;
+    redrawAll();
+  });
+
+  btnResetABWave.addEventListener('click', () => {
+    if (!isPaused) return;
+    waveAB = {A:null, B:null};
+    updateDelta();
+    redrawAll();
+  });
+
+  btnResetABSpec.addEventListener('click', () => {
+    if (!isPaused) return;
+    specAB = {A:null, B:null};
+    updateDelta();
+    redrawAll();
+  });
+
+  // Wave window sync
+  function setTimeWin(v){
+    const vv = clamp(parseFloat(v), 0.05, 5);
+    secRange.value = vv.toFixed(2);
+    secNum.value = vv.toFixed(2);
+    if (isRunning){
+      allocRing();
+      waveZoom = {t0:0, t1: timeWinSec()};
+      waveAB = {A:null, B:null};
+      cursorWave = null;
+      updateDelta();
+    }
+    redrawAll();
+  }
+  secRange.addEventListener('input', () => setTimeWin(secRange.value));
+  secNum.addEventListener('change', () => setTimeWin(secNum.value));
+
+  fftS.addEventListener('change', () => {
+    if (!analyser) return;
+    analyser.fftSize = parseInt(fftS.value, 10);
+    snapFFT = analyser.fftSize;
+    redrawAll();
+  });
+
+  function setFminUI(){
+    const v = fminPreset.value;
+    if (v === '任意'){
+      fminCustom.classList.remove('hidden');
+      fminHz = clamp(parseFloat(fminCustom.value || "0"), 0, 1e9);
+    } else {
+      fminCustom.classList.add('hidden');
+      fminHz = parseFloat(v);
+      fminCustom.value = String(fminHz);
+    }
+  }
+  function setFmaxUI(){
+    const v = fmaxPreset.value;
+    if (v === '任意'){
+      fmaxCustom.classList.remove('hidden');
+      fmaxHz = clamp(parseFloat(fmaxCustom.value || "1500"), 1, 1e9);
+    } else {
+      fmaxCustom.classList.add('hidden');
+      fmaxHz = parseFloat(v);
+      fmaxCustom.value = String(fmaxHz);
+    }
+  }
+  function applySpecRange(){
+    if (audioCtx){
+      const {fmin, fmax} = getFminFmaxClamped();
+      fminHz = fmin; fmaxHz = fmax;
+    }
+    specZoom = {f0: fminHz, f1: fmaxHz};
+    specAB = {A:null, B:null};
+    cursorSpec = null;
+    updateDelta();
+    redrawAll();
+  }
+  fminPreset.addEventListener('change', () => { setFminUI(); applySpecRange(); });
+  fmaxPreset.addEventListener('change', () => { setFmaxUI(); applySpecRange(); });
+  fminCustom.addEventListener('change', () => { setFminUI(); applySpecRange(); });
+  fmaxCustom.addEventListener('change', () => { setFmaxUI(); applySpecRange(); });
+
+  setFminUI(); setFmaxUI(); applySpecRange();
+
+  // ========= pointer helpers =========
+  function canvasX(canvas, ev){
+    const r = canvas.getBoundingClientRect();
+    const x = (ev.clientX - r.left) * (canvas.width / r.width);
+    return clamp(x, 0, canvas.width);
+  }
+
+  // ========= Zoom (Pause only) =========
+  function makeZoomHandlers(canvas, kind){
+    let dragging = false;
+    let dragStartX = 0;
+    let dragLastX = 0;
+    let dragIsPan = false;
+
+    let lastDist = 0;
+    let lastMidX = 0;
+
+    function getRange(){
+      return (kind === 'wave') ? {a: waveZoom.t0, b: waveZoom.t1} : {a: specZoom.f0, b: specZoom.f1};
+    }
+    function setRange(a,b){
+      if (kind === 'wave'){
+        const win = timeWinSec();
+        const na = clamp(Math.min(a,b), 0, win);
+        const nb = clamp(Math.max(a,b), 0, win);
+        const minSpan = win * 0.002;
+        if ((nb-na) < minSpan) return;
+        waveZoom = {t0:na, t1:nb};
+      } else {
+        const base0 = fminHz, base1 = fmaxHz;
+        const na = clamp(Math.min(a,b), base0, base1);
+        const nb = clamp(Math.max(a,b), base0, base1);
+        const minSpan = Math.max(1, (base1-base0)*0.002);
+        if ((nb-na) < minSpan) return;
+        specZoom = {f0:na, f1:nb};
+      }
+    }
+    function mapXToValue(x){
+      const W = canvas.width;
+      const frac = clamp(x/W, 0, 1);
+      const r = getRange();
+      return r.a + frac*(r.b - r.a);
+    }
+    function panBy(dx){
+      const W = canvas.width;
+      const r = getRange();
+      const span = (r.b - r.a);
+      const dv = -(dx/W) * span;
+      setRange(r.a + dv, r.b + dv);
+    }
+
+    canvas.addEventListener('pointermove', (ev) => {
+      if (!isPaused || !audioCtx) return;
+
+      const x = canvasX(canvas, ev);
+      if (kind === 'wave') cursorWave = waveValueAt(x);
+      else cursorSpec = specValueAt(x);
+      setStatus();
+
+      if (!dragging || mode !== 'zoom') return;
+
+      dragLastX = x;
+      if (dragIsPan){
+        panBy(dragLastX - dragStartX);
+        dragStartX = dragLastX;
+        redrawAll();
       }
     });
 
-    sourceNode = audioCtx.createMediaStreamSource(mediaStream);
+    canvas.addEventListener('pointerdown', (ev) => {
+      if (!isPaused || !audioCtx) return;
+      if (mode !== 'zoom') return;
 
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = fftSize;
-    analyser.smoothingTimeConstant = 0; // educational: raw
-    freqBins = new Float32Array(analyser.frequencyBinCount);
-    freqBinsByte = new Uint8Array(analyser.frequencyBinCount);
+      dragging = true;
+      dragStartX = canvasX(canvas, ev);
+      dragLastX = dragStartX;
+      dragIsPan = ev.shiftKey === true;
+      canvas.setPointerCapture(ev.pointerId);
+    });
 
-    workletNode = new AudioWorkletNode(audioCtx, 'tap-processor');
+    canvas.addEventListener('pointerup', (ev) => {
+      if (!dragging) return;
+      if (!isPaused || !audioCtx) { dragging = false; return; }
+      if (mode !== 'zoom') { dragging = false; return; }
 
-    // route: source -> analyser -> worklet -> (optional destination muted)
-    // We avoid playing out by not connecting to destination, but analyser/worklet need a path in some browsers.
-    // So we connect to a zero-gain node to destination.
-    const zero = audioCtx.createGain();
-    zero.gain.value = 0.0;
+      const endX = canvasX(canvas, ev);
+      dragging = false;
 
-    sourceNode.connect(analyser);
-    analyser.connect(workletNode);
-    workletNode.connect(zero);
-    zero.connect(audioCtx.destination);
+      if (dragIsPan){ redrawAll(); return; }
 
-    workletNode.port.onmessage = (e) => {
-      const chunk = e.data;
-      if (!chunk || !chunk.length) return;
-      writeRing(chunk);
-      lastChunkTs = performance.now();
-    };
+      if (Math.abs(endX - dragStartX) < 6){ redrawAll(); return; }
+      const v0 = mapXToValue(dragStartX);
+      const v1 = mapXToValue(endX);
+      setRange(v0, v1);
+      redrawAll();
+    });
+
+    canvas.addEventListener('dblclick', () => {
+      if (!isPaused) return;
+      if (kind === 'wave') waveZoom = {t0:0, t1: timeWinSec()};
+      else specZoom = {f0: fminHz, f1: fmaxHz};
+      redrawAll();
+    });
+
+    // touch pinch + 2 finger pan
+    canvas.addEventListener('touchstart', (ev) => {
+      if (!isPaused || !audioCtx) return;
+      if (mode !== 'zoom') return;
+      if (ev.touches.length === 2){
+        ev.preventDefault();
+        const t0 = ev.touches[0], t1 = ev.touches[1];
+        const r = canvas.getBoundingClientRect();
+        const x0 = (t0.clientX - r.left) * (canvas.width / r.width);
+        const x1 = (t1.clientX - r.left) * (canvas.width / r.width);
+        lastDist = Math.abs(x1 - x0);
+        lastMidX = (x0 + x1) / 2;
+      }
+    }, {passive:false});
+
+    canvas.addEventListener('touchmove', (ev) => {
+      if (!isPaused || !audioCtx) return;
+      if (mode !== 'zoom') return;
+      if (ev.touches.length === 2){
+        ev.preventDefault();
+        const t0 = ev.touches[0], t1 = ev.touches[1];
+        const r = canvas.getBoundingClientRect();
+        const x0 = (t0.clientX - r.left) * (canvas.width / r.width);
+        const x1 = (t1.clientX - r.left) * (canvas.width / r.width);
+        const dist = Math.abs(x1 - x0);
+        const midX = (x0 + x1) / 2;
+
+        const panDx = (midX - lastMidX);
+        if (Math.abs(panDx) > 0.5) panBy(panDx);
+        lastMidX = midX;
+
+        if (lastDist > 0){
+          const scale = dist / lastDist;
+          const r0 = getRange();
+          const midV = mapXToValue(midX);
+          const span = (r0.b - r0.a) / scale;
+          const a = midV - (midV - r0.a) / scale;
+          const b = a + span;
+          setRange(a, b);
+        }
+        lastDist = dist;
+
+        redrawAll();
+      }
+    }, {passive:false});
   }
 
-  function writeRing(chunk){
-    // chunk: Float32Array
-    for (let i=0;i<chunk.length;i++){
-      ring[ringWrite] = chunk[i];
-      ringWrite = (ringWrite + 1) % ringLen;
-      ringCount++;
+  makeZoomHandlers(waveC, 'wave');
+  makeZoomHandlers(specC, 'spec');
+
+  // ========= AB selection (Pause only) =========
+  function makeABHandlers(canvas, kind){
+    canvas.addEventListener('pointerdown', (ev) => {
+      if (!isPaused || !audioCtx) return;
+      if (mode !== 'ab') return;
+
+      const x = canvasX(canvas, ev);
+      if (kind === 'wave'){
+        const v = waveValueAt(x);
+        if (!v) return;
+        if (!waveAB.A) waveAB.A = v;
+        else if (!waveAB.B) waveAB.B = v;
+        else waveAB = {A:v, B:null};
+      } else {
+        const v = specValueAt(x);
+        if (!v) return;
+        if (!specAB.A) specAB.A = v;
+        else if (!specAB.B) specAB.B = v;
+        else specAB = {A:v, B:null};
+      }
+      updateDelta();
+      redrawAll();
+    });
+  }
+  makeABHandlers(waveC, 'wave');
+  makeABHandlers(specC, 'spec');
+
+  // ========= CSV DL (Pause only) =========
+  function downloadCSV(){
+    if (!isPaused || !audioCtx) return;
+
+    const lines = [];
+    lines.push(`# Mic Waveform + Acoustic Spectrum CSV`);
+    lines.push(`# sampleRate=${snapSR}, fftSize=${snapFFT}`);
+    lines.push(`# timeWindowSec=${timeWinSec().toFixed(3)}`);
+    lines.push(`# waveZoom=[${waveZoom.t0.toFixed(6)}, ${waveZoom.t1.toFixed(6)}] sec`);
+    lines.push(`# specZoom=[${specZoom.f0.toFixed(3)}, ${specZoom.f1.toFixed(3)}] Hz`);
+    lines.push('');
+
+    if (snapWave){
+      lines.push('WAVEFORM');
+      lines.push('t_ms,amp');
+      const win = timeWinSec();
+      const n = snapWave.length;
+      for (let i=0; i<n; i++){
+        const t = (i/(n-1)) * win * 1000;
+        lines.push(`${t.toFixed(6)},${snapWave[i].toFixed(8)}`);
+      }
+      lines.push('');
     }
-  }
 
-  // ---------- Snapshot helpers ----------
-  function getWaveWindowFromRing(){
-    if (!ring) return null;
-    const need = Math.floor(sampleRate * waveWindowSec);
-    const out = new Float32Array(need);
-    // ringWrite points to next write position; last sample is ringWrite-1
-    let idx = ringWrite - need;
-    while (idx < 0) idx += ringLen;
-    for (let i=0;i<need;i++){
-      out[i] = ring[(idx + i) % ringLen];
-    }
-    snapWaveStartCount = ringCount - need;
-    return out;
-  }
+    if (snapFreqDb && snapFreqHz){
+      lines.push('SPECTRUM');
+      lines.push('f_hz,db,norm_percent');
 
-  function captureSpectrumSnapshot(){
-    if (!analyser) return;
-    if (yMode === 'db'){
-      analyser.getFloatFrequencyData(freqBins);
-      // keep a copy
-      snapSpec = new Float32Array(freqBins);
-    } else {
-      analyser.getByteFrequencyData(freqBinsByte);
-      // store as float 0..100 (%) after mapping
-      snapSpec = new Float32Array(freqBinsByte.length);
-      for (let i=0;i<freqBinsByte.length;i++){
-        snapSpec[i] = (freqBinsByte[i] / 255) * 100;
+      const bins = snapFreqDb.length;
+      const b0 = specHzToBin(specZoom.f0, bins);
+      const b1 = specHzToBin(specZoom.f1, bins);
+      const lo = Math.min(b0,b1), hi = Math.max(b0,b1);
+
+      let maxAmp = 0;
+      const amp = new Float64Array(hi-lo+1);
+      for (let i=lo; i<=hi; i++){
+        const a = Math.pow(10, snapFreqDb[i]/20);
+        amp[i-lo] = a;
+        if (a > maxAmp) maxAmp = a;
+      }
+      if (maxAmp <= 0) maxAmp = 1;
+
+      for (let i=lo; i<=hi; i++){
+        const f = snapFreqHz[i];
+        const db = snapFreqDb[i];
+        const norm = (amp[i-lo]/maxAmp)*100;
+        lines.push(`${f.toFixed(3)},${db.toFixed(3)},${norm.toFixed(4)}`);
       }
     }
-    snapSpecMeta = {
-      fftSize,
-      minHz: parseFloat(minHzIn.value),
-      maxHz: parseFloat(maxHzIn.value),
-      yMode
-    };
-  }
 
-  // ---------- Start / Pause / Reset ----------
-  async function start(){
-    try{
-      await initAudio();
-      setAppState(State.RUNNING);
-      scheduleDraw();
-    }catch(err){
-      console.error(err);
-      const msg = [
-        'マイクを取得できませんでした。',
-        '・ブラウザでマイク許可が必要です（拒否した場合は取得できません）。',
-        '・このアプリは HTTPS または localhost でのみマイクが使えます。',
-        'エラー: ' + (err?.message || String(err))
-      ].join('\n');
-      document.getElementById('statusLine').textContent = msg;
-      setAppState(State.STOPPED);
-      await hardResetAudio(); // best effort cleanup
-    }
-  }
-
-  function pauseToggle(){
-    if (appState === State.RUNNING){
-      // freeze snapshots + stop animation (display only)
-      snapWave = getWaveWindowFromRing();
-      captureSpectrumSnapshot();
-      setAppState(State.PAUSED);
-      cancelAnimationFrame(rafId); rafId = 0;
-      drawOnce();
-    } else if (appState === State.PAUSED){
-      // Resume: keep audio running, resume draw, but per 案1 auto-clear zoom
-      setAppState(State.RUNNING);
-      scheduleDraw();
-    }
-  }
-
-  async function hardResetAudio(){
-    // stop draw
-    cancelAnimationFrame(rafId); rafId = 0;
-
-    // stop tracks
-    if (mediaStream){
-      for (const tr of mediaStream.getTracks()) tr.stop();
-    }
-    mediaStream = null;
-
-    // disconnect nodes
-    try{ sourceNode?.disconnect(); }catch{}
-    try{ analyser?.disconnect(); }catch{}
-    try{ workletNode?.disconnect(); }catch{}
-    sourceNode = null; analyser = null; workletNode = null;
-
-    // close context
-    if (audioCtx){
-      try{ await audioCtx.close(); }catch{}
-    }
-    audioCtx = null;
-
-    // clear buffers
-    ring = null; ringLen = 0; ringWrite = 0; ringCount = 0;
-    snapWave = null; snapSpec = null; snapSpecMeta = null;
-
-    // clear UI state
-    resetWaveZoom();
-    resetSpecZoom();
-    clearAllCursorsAB();
-    updateDeltas();
-
-    drawOnce();
-  }
-
-  async function resetAll(){
-    await hardResetAudio();
-    setAppState(State.STOPPED);
-    document.getElementById('statusLine').innerHTML =
-      '<b>注意：</b>このアプリは <b>HTTPS</b> または <b>localhost</b> 上でのみマイクが使えます。マイク許可を拒否した場合は取得できません。';
-  }
-
-  btnStart.addEventListener('click', start);
-  btnPause.addEventListener('click', pauseToggle);
-  btnReset.addEventListener('click', resetAll);
-
-  // ---------- CSV ----------
-  function downloadCSVWave(){
-    if (appState !== State.PAUSED) return;
-    const data = getWaveDisplayData(); // from snapshot
-    if (!data) return;
-
-    const {samples, t0ms, dtms, x0ms, x1ms} = data;
-    const lines = [];
-    lines.push(`# kind: waveform`);
-    lines.push(`# sampleRate: ${sampleRate}`);
-    lines.push(`# windowSec: ${waveWindowSec}`);
-    lines.push(`# zoomX_ms: ${x0ms.toFixed(3)}..${x1ms.toFixed(3)}`);
-    lines.push(`# zoomY_amp: ${waveZoom.active ? `${waveZoom.y0.toFixed(6)}..${waveZoom.y1.toFixed(6)}` : `-1..1`}`);
-    lines.push(`t_ms,amp`);
-
-    // export only visible range: map each sample time and include
-    const startIndex = Math.max(0, Math.floor(x0ms / dtms));
-    const endIndex = Math.min(samples.length-1, Math.ceil(x1ms / dtms));
-    for (let i=startIndex;i<=endIndex;i++){
-      const t = i*dtms;
-      lines.push(`${t.toFixed(6)},${samples[i].toFixed(8)}`);
-    }
-    saveText(lines.join('\n'), `waveform_${nowTs()}.csv`);
-  }
-
-  function downloadCSVSpec(){
-    if (appState !== State.PAUSED) return;
-    const spec = getSpectrumDisplayData();
-    if (!spec) return;
-
-    const lines = [];
-    const minHz = parseFloat(minHzIn.value);
-    const maxHz = parseFloat(maxHzIn.value);
-    lines.push(`# kind: spectrum`);
-    lines.push(`# sampleRate: ${sampleRate}`);
-    lines.push(`# fftSize: ${fftSize}`);
-    lines.push(`# freqRangeHz: ${minHz}..${maxHz}`);
-    lines.push(`# yMode: ${yMode}`);
-    lines.push(`# zoomX_Hz: ${spec.x0.toFixed(3)}..${spec.x1.toFixed(3)}`);
-    lines.push(`f_hz,y`);
-
-    const {binHz, yArr, i0, i1} = spec;
-    for (let i=i0;i<=i1;i++){
-      const f = i*binHz;
-      const y = yArr[i];
-      lines.push(`${f.toFixed(6)},${yMode==='norm'?y.toFixed(6):y.toFixed(6)}`);
-    }
-    saveText(lines.join('\n'), `spectrum_${nowTs()}.csv`);
-  }
-
-  function saveText(text, filename){
-    const blob = new Blob([text], {type:'text/csv;charset=utf-8'});
+    const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+    const ts = new Date();
+    const name = `mic_wave_spec_${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}-${String(ts.getDate()).padStart(2,'0')}_${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}${String(ts.getSeconds()).padStart(2,'0')}.csv`;
     a.href = url;
-    a.download = filename;
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
   }
+  btnCSV.addEventListener('click', downloadCSV);
 
-  btnWaveCSV.addEventListener('click', downloadCSVWave);
-  btnSpecCSV.addEventListener('click', downloadCSVSpec);
+  // ========= Shortcuts =========
+  function isTypingTarget(el){
+    if (!el) return false;
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+    if (el.isContentEditable) return true;
+    return false;
+  }
 
-  // ---------- A/B clear ----------
-  function clearAB(which){
-    if (which === 'wave'){
-      ABWave.A = ABWave.B = null;
-      cursorWave.active = false;
-      bubbleWave.style.display = 'none';
-    } else {
-      ABSpec.A = ABSpec.B = null;
-      cursorSpec.active = false;
-      bubbleSpec.style.display = 'none';
+  window.addEventListener('keydown', (ev) => {
+    if (ev.repeat) return;
+    if (isTypingTarget(document.activeElement)) return;
+
+    const k = (ev.key || '').toLowerCase();
+
+    // avoid interfering with browser shortcuts
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+
+    if (k === 's'){
+      ev.preventDefault();
+      if (!isRunning) btnStart.click();
+      return;
     }
-    updateDeltas();
-    drawOnce();
-  }
-  btnWaveABClear.addEventListener('click', () => clearAB('wave'));
-  btnSpecABClear.addEventListener('click', () => clearAB('spec'));
+    if (k === 'p'){
+      ev.preventDefault();
+      if (isRunning) btnPause.click();
+      return;
+    }
+    if (k === 'r'){
+      ev.preventDefault();
+      if (isRunning) btnReset.click();
+      return;
+    }
+    if (k === 'z'){
+      ev.preventDefault();
+      btnMode.click();
+      return;
+    }
+    if (k === 'w'){ ev.preventDefault(); tabWave.click(); return; }
+    if (k === 'f'){ ev.preventDefault(); tabSpec.click(); return; }
+    if (k === 'b'){ ev.preventDefault(); tabBoth.click(); return; }
 
-  // Esc clears cursor + AB both
-  function escClear(){
-    clearAllCursorsAB();
-    drawOnce();
-  }
+    if (k === 'v'){
+      ev.preventDefault();
+      if (isPaused) downloadCSV();
+      return;
+    }
 
-  // ---------- Keyboard shortcuts ----------
-  window.addEventListener('keydown', (e) => {
-    if (isTextInputFocused()) return;
-
-    const k = e.key.toLowerCase();
-    if (k === 's'){ e.preventDefault(); if (appState === State.STOPPED) start(); }
-    else if (k === 'p'){ e.preventDefault(); if (appState !== State.STOPPED) pauseToggle(); }
-    else if (k === 'r'){ e.preventDefault(); resetAll(); }
-    else if (k === 'z'){ e.preventDefault(); setMode(mode===Mode.ZOOM ? Mode.PICK : Mode.ZOOM); }
-    else if (k === 'w'){ e.preventDefault(); setView('wave'); }
-    else if (k === 'f'){ e.preventDefault(); setView('spec'); }
-    else if (k === 'b'){ e.preventDefault(); setView('both'); }
-    else if (k === 'v'){ e.preventDefault(); if (appState===State.PAUSED) { downloadCSVWave(); downloadCSVSpec(); } }
-    else if (k === 'escape'){ e.preventDefault(); escClear(); }
+    if (k === 'escape'){
+      ev.preventDefault();
+      if (!isPaused) return;
+      cursorWave = null;
+      cursorSpec = null;
+      waveAB = {A:null, B:null};
+      specAB = {A:null, B:null};
+      updateDelta();
+      redrawAll();
+      return;
+    }
   });
 
-  // ---------- Drawing ----------
-  function scheduleDraw(){
-    if (rafId) return;
-    const tick = () => {
-      rafId = requestAnimationFrame(tick);
-      if (appState !== State.RUNNING) return;
-      drawAll();
-    };
-    rafId = requestAnimationFrame(tick);
-  }
+  // ========= Init =========
+  resizeAll();
+  setActiveTab('both');
+  applyButtonStates();
+  redrawAll();
 
-  function drawOnce(){
-    drawAll(true);
-  }
-
-  function themeColors(){
-    const isDark = (theme==='dark');
-    return {
-      bg: getComputedStyle(app).getPropertyValue('--bg').trim(),
-      fg: getComputedStyle(app).getPropertyValue('--fg').trim(),
-      muted: getComputedStyle(app).getPropertyValue('--muted').trim(),
-      grid: getComputedStyle(app).getPropertyValue('--grid').trim(),
-      accent: getComputedStyle(app).getPropertyValue('--accent').trim(),
-      overlay: getComputedStyle(app).getPropertyValue('--overlay').trim(),
-      overlayBorder: getComputedStyle(app).getPropertyValue('--overlayBorder').trim(),
-      border: getComputedStyle(app).getPropertyValue('--border').trim(),
-    };
-  }
-
-  function clearCanvas(ctx, w, h, bg){
-    ctx.save();
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.clearRect(0,0,w,h);
-    ctx.fillStyle = bg;
-    ctx.fillRect(0,0,w,h);
-    ctx.restore();
-  }
-
-  function drawAll(forceStatic=false){
-    const c = themeColors();
-    drawWave(c, forceStatic);
-    drawSpec(c, forceStatic);
-  }
-
-  // ----- Ticks (ms / Hz) -----
-  function computeTicks(min, max, targetCount=5){
-    const span = max - min;
-    if (span <= 0) return [];
-    const raw = span / (targetCount-1);
-    const step = nice125(raw);
-    // start at nice multiple
-    const start = Math.ceil(min / step) * step;
-    const ticks = [];
-    for (let v=start; v<=max+1e-9; v+=step){
-      ticks.push(v);
-    }
-    // ensure endpoints included (as labels) roughly
-    // We'll add endpoints if far
-    if (ticks.length === 0 || Math.abs(ticks[0]-min) > step*0.25) ticks.unshift(min);
-    if (Math.abs(ticks[ticks.length-1]-max) > step*0.25) ticks.push(max);
-    // de-dup
-    const uniq = [];
-    for (const t of ticks){
-      if (uniq.length===0 || Math.abs(uniq[uniq.length-1]-t) > step*0.1) uniq.push(t);
-    }
-    return uniq;
-  }
-
-  // ----- Wave data for drawing / cursor -----
-  function getWaveDisplayData(){
-    if (!snapWave) return null;
-    const samples = snapWave;
-    const dtms = 1000 / sampleRate;
-    const x0ms = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-    const x1ms = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-    const t0ms = 0;
-    return {samples, dtms, t0ms, x0ms, x1ms};
-  }
-
-  function drawWave(c, forceStatic){
-    const ctx = cvWave.getContext('2d');
-    const w = cvWave.width, h = cvWave.height;
-
-    // choose data source
-    if (appState === State.RUNNING){
-      // running: draw from ring (last window)
-      // generate view samples (without copying huge if possible). We'll copy the window for simplicity.
-      snapWave = getWaveWindowFromRing();
-    } else if (appState === State.STOPPED){
-      // no data
-      snapWave = null;
-    }
-    const data = getWaveDisplayData();
-
-    clearCanvas(ctx, w, h, c.bg);
-
-    // plot area with margins for top ticks
-    const padL = 64, padR = 18, padT = 42, padB = 36;
-    const pw = w - padL - padR;
-    const ph = h - padT - padB;
-
-    // frame
-    ctx.strokeStyle = c.border;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(padL, padT, pw, ph);
-
-    // grid
-    ctx.strokeStyle = c.grid;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i=1;i<5;i++){
-      const y = padT + ph * (i/5);
-      ctx.moveTo(padL, y); ctx.lineTo(padL+pw, y);
-    }
-    ctx.stroke();
-
-    // y axis range
-    let yMin = -1, yMax = 1;
-    if (waveZoom.active){
-      yMin = Math.min(waveZoom.y0, waveZoom.y1);
-      yMax = Math.max(waveZoom.y0, waveZoom.y1);
-      if (Math.abs(yMax - yMin) < 1e-9){ yMin=-1; yMax=1; }
-    }
-
-    // x range (ms)
-    const xMin = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-    const xMax = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-
-    // ticks (top, ~5)
-    const ticks = computeTicks(xMin, xMax, 5);
-    ctx.fillStyle = c.fg;
-    ctx.font = `${Math.round(12*devicePixelRatio)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    // draw tick labels (thin)
-    ctx.strokeStyle = c.grid;
-    ctx.lineWidth = 1;
-    for (const t of ticks){
-      const x = padL + (t - xMin) / (xMax - xMin) * pw;
-      // tick line
-      ctx.beginPath();
-      ctx.moveTo(x, padT); ctx.lineTo(x, padT+ph);
-      ctx.stroke();
-      // label
-      const label = `${t.toFixed(spanDigits(xMax-xMin))} ms`;
-      // naive overlap avoidance: skip if too close to previous
-      // We'll track last x
-    }
-    // actually draw labels with simple overlap culling
-    let lastLabelX = -1e9;
-    for (const t of ticks){
-      const x = padL + (t - xMin) / (xMax - xMin) * pw;
-      if (x - lastLabelX < 70 * Math.max(1, devicePixelRatio)) continue;
-      lastLabelX = x;
-      const label = `${t.toFixed(spanDigits(xMax-xMin))}`;
-      ctx.fillText(label, x, padT - 6);
-    }
-    // axis label "ms" at far right top
-    ctx.textAlign = 'right';
-    ctx.fillText('ms', padL+pw, padT - 6);
-
-    // no data message
-    if (!data){
-      ctx.fillStyle = c.muted;
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
-      ctx.font = `${Math.round(14*devicePixelRatio)}px system-ui, sans-serif`;
-      ctx.fillText('Startでマイク入力を開始します', padL+pw/2, padT+ph/2);
-      drawWaveAB(ctx, c, padL, padT, pw, ph, xMin, xMax, yMin, yMax);
-      return;
-    }
-
-    // waveform draw: min/max per pixel
-    ctx.strokeStyle = c.accent;
-    ctx.lineWidth = 1.5 * Math.max(1, devicePixelRatio*0.6);
-    ctx.beginPath();
-
-    const {samples, dtms} = data;
-    // visible sample indices
-    const i0 = Math.max(0, Math.floor(xMin / dtms));
-    const i1 = Math.min(samples.length-1, Math.ceil(xMax / dtms));
-    const nVis = i1 - i0 + 1;
-
-    if (nVis <= 2){
-      // too short
-    } else {
-      // per x pixel, compute min/max
-      const pxCount = Math.max(1, Math.floor(pw));
-      const spp = nVis / pxCount;
-      for (let px=0; px<pxCount; px++){
-        const a = Math.floor(i0 + px*spp);
-        const b = Math.floor(i0 + (px+1)*spp);
-        let mn =  1e9, mx = -1e9;
-        const bb = Math.min(i1, Math.max(a+1, b));
-        for (let i=a; i<=bb; i++){
-          const v = samples[i];
-          if (v<mn) mn=v;
-          if (v>mx) mx=v;
-        }
-        const x = padL + (px / (pxCount-1)) * pw;
-        const y1 = padT + (1 - (mx - yMin)/(yMax-yMin)) * ph;
-        const y2 = padT + (1 - (mn - yMin)/(yMax-yMin)) * ph;
-        ctx.moveTo(x, y1);
-        ctx.lineTo(x, y2);
-      }
-      ctx.stroke();
-    }
-
-    // cursor highlight + bubble (Pause only)
-    if (appState === State.PAUSED && cursorWave.active){
-      const x = padL + (cursorWave.tms - xMin)/(xMax-xMin) * pw;
-      const y = padT + (1 - (cursorWave.amp - yMin)/(yMax-yMin)) * ph;
-      drawCursorPoint(ctx, c, x, y);
-
-      // bubble near point (DOM overlay)
-      bubbleWave.style.display = 'block';
-      bubbleWave.textContent = `t=${cursorWave.tms.toFixed(3)} ms, amp=${cursorWave.amp.toFixed(4)}`;
-      placeBubble(bubbleWave, wrapWave, x/cvWave.width, y/cvWave.height);
-    } else {
-      bubbleWave.style.display = 'none';
-    }
-
-    // A/B
-    drawWaveAB(ctx, c, padL, padT, pw, ph, xMin, xMax, yMin, yMax);
-  }
-
-  function spanDigits(span){
-    // digits to show for tick labels in ms
-    if (span <= 1) return 3;
-    if (span <= 10) return 2;
-    if (span <= 100) return 1;
-    return 0;
-  }
-
-  function drawCursorPoint(ctx, c, x, y){
-    ctx.save();
-    ctx.fillStyle = c.accent;
-    ctx.strokeStyle = c.bg;
-    ctx.lineWidth = 2.5 * Math.max(1, devicePixelRatio*0.7);
-    ctx.beginPath();
-    ctx.arc(x, y, 5 * Math.max(1, devicePixelRatio*0.6), 0, Math.PI*2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawWaveAB(ctx, c, padL, padT, pw, ph, xMin, xMax, yMin, yMax){
-    ctx.save();
-    ctx.strokeStyle = c.accent2;
-    ctx.lineWidth = 1.5 * Math.max(1, devicePixelRatio*0.6);
-
-    function drawLine(pt){
-      const x = padL + (pt.tms - xMin)/(xMax-xMin) * pw;
-      ctx.beginPath();
-      ctx.moveTo(x, padT);
-      ctx.lineTo(x, padT+ph);
-      ctx.stroke();
-
-      const y = padT + (1 - (pt.amp - yMin)/(yMax-yMin)) * ph;
-      ctx.fillStyle = c.accent2;
-      ctx.beginPath();
-      ctx.arc(x, y, 4.5 * Math.max(1, devicePixelRatio*0.6), 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    if (ABWave.A) drawLine(ABWave.A);
-    if (ABWave.B) drawLine(ABWave.B);
-    ctx.restore();
-  }
-
-  // ----- Spectrum data for drawing / cursor -----
-  function getSpectrumDisplayData(){
-    const nyq = sampleRate/2;
-    const minHz = clamp(parseFloat(minHzIn.value), 0, nyq);
-    const maxHz = clamp(parseFloat(maxHzIn.value), minHz+1, nyq);
-
-    const binCount = analyser ? analyser.frequencyBinCount : (snapSpec ? snapSpec.length : 0);
-    if (!binCount) return null;
-
-    const binHz = sampleRate / fftSize; // since binCount = fftSize/2
-    // y array source
-    let yArr = null;
-    if (appState === State.RUNNING && analyser){
-      if (yMode === 'db'){
-        analyser.getFloatFrequencyData(freqBins);
-        yArr = freqBins;
-      } else {
-        analyser.getByteFrequencyData(freqBinsByte);
-        // map to 0..100
-        // We won't allocate every frame in place; reuse a temp buffer
-        if (!getSpectrumDisplayData._tmp || getSpectrumDisplayData._tmp.length !== freqBinsByte.length){
-          getSpectrumDisplayData._tmp = new Float32Array(freqBinsByte.length);
-        }
-        const tmp = getSpectrumDisplayData._tmp;
-        for (let i=0;i<freqBinsByte.length;i++) tmp[i] = (freqBinsByte[i]/255)*100;
-        yArr = tmp;
-      }
-    } else if (appState === State.PAUSED && snapSpec){
-      yArr = snapSpec;
-    } else {
-      return null;
-    }
-
-    // zoom x
-    const x0 = specZoom.active ? specZoom.x0 : minHz;
-    const x1 = specZoom.active ? specZoom.x1 : maxHz;
-
-    let i0 = Math.floor(x0 / binHz);
-    let i1 = Math.ceil(x1 / binHz);
-    i0 = clamp(i0, 0, yArr.length-1);
-    i1 = clamp(i1, 0, yArr.length-1);
-    if (i1 < i0) [i0,i1] = [i1,i0];
-
-    return {binHz, yArr, i0, i1, minHz, maxHz, x0, x1};
-  }
-
-  function drawSpec(c, forceStatic){
-    const ctx = cvSpec.getContext('2d');
-    const w = cvSpec.width, h = cvSpec.height;
-
-    // In PAUSE, spectrum must be fixed snapshot (no change by click)
-    if (appState === State.PAUSED){
-      // do not refresh snapSpec automatically unless explicitly changed by settings
-    } else if (appState === State.RUNNING){
-      // ok
-    } else {
-      // STOPPED
-      snapSpec = null;
-    }
-
-    const data = getSpectrumDisplayData();
-
-    clearCanvas(ctx, w, h, c.bg);
-
-    // plot area (top reserved for ticks + peak labels)
-    const padL = 70, padR = 18, padT = 58, padB = 36;
-    const pw = w - padL - padR;
-    const ph = h - padT - padB;
-
-    ctx.strokeStyle = c.border;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(padL, padT, pw, ph);
-
-    // grid
-    ctx.strokeStyle = c.grid;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i=1;i<5;i++){
-      const y = padT + ph * (i/5);
-      ctx.moveTo(padL, y); ctx.lineTo(padL+pw, y);
-    }
-    ctx.stroke();
-
-    // no data
-    if (!data){
-      ctx.fillStyle = c.muted;
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
-      ctx.font = `${Math.round(14*devicePixelRatio)}px system-ui, sans-serif`;
-      ctx.fillText('Startでマイク入力を開始します', padL+pw/2, padT+ph/2);
-      drawSpecAB(ctx, c, padL, padT, pw, ph, 0, 1, 0, 1);
-      return;
-    }
-
-    const {binHz, yArr, i0, i1, x0, x1} = data;
-
-    // y range
-    let yMin, yMax;
-    if (yMode === 'norm'){
-      yMin = 0; yMax = 100;
-    } else {
-      // typical analyser float range -140..0 (browser dependent). We'll clamp.
-      yMin = -140; yMax = 0;
-    }
-
-    // ticks for Hz
-    const ticks = computeTicks(x0, x1, 5);
-
-    // peak per tick segment
-    specPeaks = [];
-    for (let ti=0; ti<ticks.length; ti++){
-      const tHz = ticks[ti];
-      let next = (ti < ticks.length-1) ? ticks[ti+1] : x1;
-      let a = Math.floor(tHz / binHz);
-      let b = Math.floor(next / binHz);
-      a = clamp(a, i0, i1);
-      b = clamp(b, i0, i1);
-      if (b < a) [a,b] = [b,a];
-      let peak = -1e9;
-      for (let i=a;i<=b;i++){
-        peak = Math.max(peak, yArr[i]);
-      }
-      if (!Number.isFinite(peak)) peak = 0;
-      specPeaks.push(peak);
-    }
-
-    // draw vertical grid lines + tick labels top + PEAK just below
-    ctx.font = `${Math.round(12*devicePixelRatio)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle = c.fg;
-    ctx.strokeStyle = c.grid;
-    ctx.lineWidth = 1;
-
-    // overlap culling
-    let lastX = -1e9;
-    const minDx = 70 * Math.max(1, devicePixelRatio);
-
-    for (let ti=0; ti<ticks.length; ti++){
-      const tHz = ticks[ti];
-      const x = padL + (tHz - x0)/(x1-x0) * pw;
-
-      // grid line
-      ctx.beginPath();
-      ctx.moveTo(x, padT); ctx.lineTo(x, padT+ph);
-      ctx.stroke();
-
-      if (x - lastX < minDx) continue;
-      lastX = x;
-
-      // tick label (upper)
-      const lbl = formatHz(tHz);
-      ctx.fillText(lbl, x, padT - 26);
-
-      // peak label just below tick label
-      ctx.textBaseline = 'top';
-      const pk = specPeaks[ti];
-      const pkTxt = (yMode==='norm') ? `${pk.toFixed(0)}%` : `${pk.toFixed(1)} dB`;
-      ctx.fillStyle = c.muted;
-      ctx.fillText(pkTxt, x, padT - 22);
-      ctx.fillStyle = c.fg;
-      ctx.textBaseline = 'bottom';
-    }
-    // axis hint
-    ctx.textAlign = 'right';
-    ctx.fillText('Hz', padL+pw, padT - 26);
-
-    // draw spectrum min/max per pixel
-    ctx.strokeStyle = c.accent;
-    ctx.lineWidth = 1.5 * Math.max(1, devicePixelRatio*0.6);
-    ctx.beginPath();
-
-    const nVis = i1 - i0 + 1;
-    const pxCount = Math.max(1, Math.floor(pw));
-    const spp = nVis / pxCount;
-
-    for (let px=0; px<pxCount; px++){
-      const a = Math.floor(i0 + px*spp);
-      const b = Math.floor(i0 + (px+1)*spp);
-      let mn =  1e9, mx = -1e9;
-      const bb = Math.min(i1, Math.max(a+1, b));
-      for (let i=a; i<=bb; i++){
-        const v = yArr[i];
-        if (v < mn) mn = v;
-        if (v > mx) mx = v;
-      }
-      const x = padL + (px / (pxCount-1)) * pw;
-      const y1p = padT + (1 - (mx - yMin)/(yMax-yMin)) * ph;
-      const y2p = padT + (1 - (mn - yMin)/(yMax-yMin)) * ph;
-      ctx.moveTo(x, y1p);
-      ctx.lineTo(x, y2p);
-    }
-    ctx.stroke();
-
-    // cursor highlight + bubble (Pause only)
-    if (appState === State.PAUSED && cursorSpec.active){
-      const x = padL + (cursorSpec.hz - x0)/(x1-x0) * pw;
-      const y = padT + (1 - (cursorSpec.val - yMin)/(yMax-yMin)) * ph;
-      drawCursorPoint(ctx, c, x, y);
-
-      bubbleSpec.style.display = 'block';
-      bubbleSpec.textContent = `f=${cursorSpec.hz.toFixed(1)} Hz, y=${(yMode==='norm'?cursorSpec.val.toFixed(2)+'%':cursorSpec.val.toFixed(2)+' dB')}`;
-      placeBubble(bubbleSpec, wrapSpec, x/cvSpec.width, y/cvSpec.height);
-    } else {
-      bubbleSpec.style.display = 'none';
-    }
-
-    // A/B
-    drawSpecAB(ctx, c, padL, padT, pw, ph, x0, x1, yMin, yMax);
-  }
-
-  function drawSpecAB(ctx, c, padL, padT, pw, ph, xMin, xMax, yMin, yMax){
-    ctx.save();
-    ctx.strokeStyle = c.accent2;
-    ctx.lineWidth = 1.5 * Math.max(1, devicePixelRatio*0.6);
-
-    function drawLine(pt){
-      const x = padL + (pt.hz - xMin)/(xMax-xMin) * pw;
-      ctx.beginPath();
-      ctx.moveTo(x, padT);
-      ctx.lineTo(x, padT+ph);
-      ctx.stroke();
-
-      const y = padT + (1 - (pt.val - yMin)/(yMax-yMin)) * ph;
-      ctx.fillStyle = c.accent2;
-      ctx.beginPath();
-      ctx.arc(x, y, 4.5 * Math.max(1, devicePixelRatio*0.6), 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    if (ABSpec.A) drawLine(ABSpec.A);
-    if (ABSpec.B) drawLine(ABSpec.B);
-
-    ctx.restore();
-  }
-
-  // ---------- Bubble placement ----------
-  function placeBubble(bubble, wrap, nx, ny){
-    const rect = wrap.getBoundingClientRect();
-    const x = nx * rect.width;
-    const y = ny * rect.height;
-    bubble.style.left = `${x}px`;
-    bubble.style.top = `${y}px`;
-  }
-
-  // ---------- Overlay rectangle drawing ----------
-  function clearOverlay(which){
-    const ov = (which==='wave') ? ovWave : ovSpec;
-    const ctx = ov.getContext('2d');
-    ctx.clearRect(0,0,ov.width, ov.height);
-  }
-  function drawOverlayRect(which, x0,y0,x1,y1){
-    const ov = (which==='wave') ? ovWave : ovSpec;
-    const ctx = ov.getContext('2d');
-    const c = themeColors();
-    ctx.clearRect(0,0,ov.width, ov.height);
-
-    const left = Math.min(x0,x1), top = Math.min(y0,y1);
-    const w = Math.abs(x1-x0), h = Math.abs(y1-y0);
-
-    ctx.fillStyle = c.overlay;
-    ctx.strokeStyle = c.overlayBorder;
-    ctx.lineWidth = 2 * Math.max(1, devicePixelRatio*0.7);
-    ctx.fillRect(left, top, w, h);
-    ctx.strokeRect(left, top, w, h);
-  }
-
-  // ---------- Cursor + pick logic ----------
-  function pickWaveAtCanvas(px, py){
-    if (!snapWave) return null;
-    const w = cvWave.width, h = cvWave.height;
-    // match plot area numbers in drawWave
-    const padL = 64, padR = 18, padT = 42, padB = 36;
-    const pw = w - padL - padR;
-    const ph = h - padT - padB;
-    if (px < padL || px > padL+pw || py < padT || py > padT+ph) return null;
-
-    const xMin = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-    const xMax = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-    let yMin = -1, yMax = 1;
-    if (waveZoom.active){
-      yMin = Math.min(waveZoom.y0, waveZoom.y1);
-      yMax = Math.max(waveZoom.y0, waveZoom.y1);
-      if (Math.abs(yMax-yMin) < 1e-9){ yMin=-1; yMax=1; }
-    }
-
-    const tms = xMin + ((px - padL)/pw) * (xMax - xMin);
-    const ampApprox = yMin + (1 - (py - padT)/ph) * (yMax - yMin);
-
-    // sample lookup from snapWave (0..windowSec) ignoring zoom offset
-    const dtms = 1000 / sampleRate;
-    const idx = clamp(Math.round(tms / dtms), 0, snapWave.length-1);
-    const amp = snapWave[idx];
-
-    return {tms, amp, px, py};
-  }
-
-  function pickSpecAtCanvas(px, py){
-    const data = getSpectrumDisplayData();
-    if (!data) return null;
-    const {binHz, yArr, x0, x1, i0, i1} = data;
-
-    const w = cvSpec.width, h = cvSpec.height;
-    const padL = 70, padR = 18, padT = 58, padB = 36;
-    const pw = w - padL - padR;
-    const ph = h - padT - padB;
-    if (px < padL || px > padL+pw || py < padT || py > padT+ph) return null;
-
-    const hz = x0 + ((px - padL)/pw) * (x1 - x0);
-    const idx = clamp(Math.round(hz / binHz), i0, i1);
-    const val = yArr[idx];
-    return {hz: idx*binHz, val, px, py};
-  }
-
-  function updateDeltas(){
-    if (ABWave.A && ABWave.B){
-      const dt = ABWave.B.tms - ABWave.A.tms;
-      const da = ABWave.B.amp - ABWave.A.amp;
-      deltaWave.textContent = `Δ: Δt=${dt.toFixed(3)} ms, Δamp=${da.toFixed(4)}`;
-    } else {
-      deltaWave.textContent = 'Δ: —';
-    }
-    if (ABSpec.A && ABSpec.B){
-      const df = ABSpec.B.hz - ABSpec.A.hz;
-      const dy = ABSpec.B.val - ABSpec.A.val;
-      const unit = (yMode==='norm') ? '%' : 'dB';
-      deltaSpec.textContent = `Δ: Δf=${df.toFixed(1)} Hz, Δy=${dy.toFixed(2)} ${unit}`;
-    } else {
-      deltaSpec.textContent = 'Δ: —';
-    }
-  }
-
-  function cycleAB(which, pt){
-    if (which==='wave'){
-      if (!ABWave.A || (ABWave.A && ABWave.B)){
-        ABWave.A = {tms: pt.tms, amp: pt.amp};
-        ABWave.B = null;
-      } else if (ABWave.A && !ABWave.B){
-        ABWave.B = {tms: pt.tms, amp: pt.amp};
-      }
-    } else {
-      if (!ABSpec.A || (ABSpec.A && ABSpec.B)){
-        ABSpec.A = {hz: pt.hz, val: pt.val};
-        ABSpec.B = null;
-      } else if (ABSpec.A && !ABSpec.B){
-        ABSpec.B = {hz: pt.hz, val: pt.val};
-      }
-    }
-    updateDeltas();
-  }
-
-  // ---------- Mouse / Pointer interactions ----------
-  function canvasPosFromEvent(ev, cv){
-    const rect = cv.getBoundingClientRect();
-    const x = (ev.clientX - rect.left) * (cv.width / rect.width);
-    const y = (ev.clientY - rect.top) * (cv.height / rect.height);
-    return {x,y};
-  }
-
-  function onMove(target, ev){
-    if (appState !== State.PAUSED) return;
-    if (drag.active) return;
-
-    if (target === 'wave'){
-      const p = canvasPosFromEvent(ev, cvWave);
-      const pt = pickWaveAtCanvas(p.x, p.y);
-      if (!pt){ cursorWave.active=false; bubbleWave.style.display='none'; drawOnce(); return; }
-      cursorWave.active = true;
-      cursorWave.tms = pt.tms;
-      cursorWave.amp = pt.amp;
-      drawOnce();
-    } else {
-      const p = canvasPosFromEvent(ev, cvSpec);
-      const pt = pickSpecAtCanvas(p.x, p.y);
-      if (!pt){ cursorSpec.active=false; bubbleSpec.style.display='none'; drawOnce(); return; }
-      cursorSpec.active = true;
-      cursorSpec.hz = pt.hz;
-      cursorSpec.val = pt.val;
-      drawOnce();
-    }
-  }
-
-  function onDown(target, ev){
-    const isShift = ev.shiftKey;
-    const isDbl = ev.detail === 2; // dblclick fallback
-    // dblclick handled separately for reliability
-    if (appState === State.PAUSED){
-      // 2-point mode click pick
-      if (mode === Mode.PICK){
-        if (target==='wave'){
-          const p = canvasPosFromEvent(ev, cvWave);
-          const pt = pickWaveAtCanvas(p.x,p.y);
-          if (!pt) return;
-          cycleAB('wave', pt);
-          drawOnce();
-          return;
-        } else {
-          const p = canvasPosFromEvent(ev, cvSpec);
-          const pt = pickSpecAtCanvas(p.x,p.y);
-          if (!pt) return;
-          cycleAB('spec', pt);
-          drawOnce();
-          return;
-        }
-      }
-
-      // zoom mode: start drag
-      if (mode === Mode.ZOOM){
-        drag.active = true;
-        drag.kind = isShift ? 'pan' : 'zoom';
-        drag.target = target;
-        const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-        drag.x0 = drag.x1 = p.x;
-        drag.y0 = drag.y1 = p.y;
-        if (!isShift) drawOverlayRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
-      }
-    }
-  }
-
-  function onUp(target, ev){
-    if (!drag.active || drag.target !== target) return;
-
-    const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-    drag.x1 = p.x; drag.y1 = p.y;
-
-    if (drag.kind === 'zoom'){
-      applyZoomFromRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
-    } else {
-      applyPanFromDrag(target, drag.x0, drag.y0, drag.x1, drag.y1);
-    }
-
-    drag.active = false;
-    clearOverlay(target);
-    drawOnce();
-  }
-
-  function onDrag(target, ev){
-    if (!drag.active || drag.target !== target) return;
-    const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-    drag.x1 = p.x; drag.y1 = p.y;
-    if (drag.kind === 'zoom'){
-      drawOverlayRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
-    }
-  }
-
-  function applyZoomFromRect(target, x0,y0,x1,y1){
-    // ignore tiny
-    if (Math.abs(x1-x0) < 8 || Math.abs(y1-y0) < 8) return;
-
-    if (target==='wave'){
-      const w = cvWave.width, h = cvWave.height;
-      const padL = 64, padR = 18, padT = 42, padB = 36;
-      const pw = w - padL - padR;
-      const ph = h - padT - padB;
-
-      const left = clamp(Math.min(x0,x1), padL, padL+pw);
-      const right = clamp(Math.max(x0,x1), padL, padL+pw);
-      const top = clamp(Math.min(y0,y1), padT, padT+ph);
-      const bottom = clamp(Math.max(y0,y1), padT, padT+ph);
-
-      const xMinMs = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-      const xMaxMs = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-
-      let yMin = -1, yMax = 1;
-      if (waveZoom.active){
-        yMin = Math.min(waveZoom.y0,waveZoom.y1);
-        yMax = Math.max(waveZoom.y0,waveZoom.y1);
-        if (Math.abs(yMax-yMin) < 1e-9){ yMin=-1; yMax=1; }
-      }
-
-      const nx0 = (left - padL)/pw;
-      const nx1 = (right - padL)/pw;
-      const ny0 = (top - padT)/ph;
-      const ny1 = (bottom - padT)/ph;
-
-      const newX0ms = lerp(xMinMs, xMaxMs, nx0);
-      const newX1ms = lerp(xMinMs, xMaxMs, nx1);
-
-      const newYMax = lerp(yMax, yMin, ny0); // note inverted
-      const newYMin = lerp(yMax, yMin, ny1);
-
-      waveZoom.active = true;
-      waveZoom.x0 = clamp(newX0ms/1000, 0, waveWindowSec);
-      waveZoom.x1 = clamp(newX1ms/1000, 0, waveWindowSec);
-      waveZoom.y0 = newYMin;
-      waveZoom.y1 = newYMax;
-    } else {
-      // spectrum x zoom only (y fixed by mode)
-      const w = cvSpec.width, h = cvSpec.height;
-      const padL = 70, padR = 18, padT = 58, padB = 36;
-      const pw = w - padL - padR;
-      const ph = h - padT - padB;
-
-      const left = clamp(Math.min(x0,x1), padL, padL+pw);
-      const right = clamp(Math.max(x0,x1), padL, padL+pw);
-
-      const baseMin = specZoom.active ? specZoom.x0 : parseFloat(minHzIn.value);
-      const baseMax = specZoom.active ? specZoom.x1 : parseFloat(maxHzIn.value);
-
-      const nx0 = (left - padL)/pw;
-      const nx1 = (right - padL)/pw;
-
-      const newX0 = lerp(baseMin, baseMax, nx0);
-      const newX1 = lerp(baseMin, baseMax, nx1);
-
-      specZoom.active = true;
-      specZoom.x0 = Math.min(newX0, newX1);
-      specZoom.x1 = Math.max(newX0, newX1);
-    }
-  }
-
-  function applyPanFromDrag(target, x0,y0,x1,y1){
-    // Shift + drag: pan.
-    const dx = x1 - x0;
-    const dy = y1 - y0;
-
-    if (target==='wave'){
-      const w = cvWave.width, h = cvWave.height;
-      const padL = 64, padR = 18, padT = 42, padB = 36;
-      const pw = w - padL - padR;
-      const ph = h - padT - padB;
-
-      const xMinMs = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-      const xMaxMs = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-      let yMin = -1, yMax = 1;
-      if (waveZoom.active){
-        yMin = Math.min(waveZoom.y0,waveZoom.y1);
-        yMax = Math.max(waveZoom.y0,waveZoom.y1);
-      }
-      const spanX = xMaxMs - xMinMs;
-      const spanY = yMax - yMin;
-
-      const dXms = -(dx/pw) * spanX;
-      const dY =  (dy/ph) * spanY; // drag down -> move window down
-
-      let nx0 = xMinMs + dXms;
-      let nx1 = xMaxMs + dXms;
-      // constrain to [0, windowSec]
-      const minAll = 0;
-      const maxAll = waveWindowSec*1000;
-      const shift = clamp(nx0, minAll, maxAll-spanX) - nx0;
-      nx0 += shift; nx1 += shift;
-
-      let ny0 = yMin + dY;
-      let ny1 = yMax + dY;
-
-      waveZoom.active = true;
-      waveZoom.x0 = nx0/1000;
-      waveZoom.x1 = nx1/1000;
-      waveZoom.y0 = ny0;
-      waveZoom.y1 = ny1;
-    } else {
-      // spectrum x pan only
-      const w = cvSpec.width, h = cvSpec.height;
-      const padL = 70, padR = 18, padT = 58, padB = 36;
-      const pw = w - padL - padR;
-
-      const baseMin = specZoom.active ? specZoom.x0 : parseFloat(minHzIn.value);
-      const baseMax = specZoom.active ? specZoom.x1 : parseFloat(maxHzIn.value);
-      const span = baseMax - baseMin;
-
-      const dHz = -(dx/pw) * span;
-
-      let nx0 = baseMin + dHz;
-      let nx1 = baseMax + dHz;
-
-      const minAll = parseFloat(minHzIn.value);
-      const maxAll = parseFloat(maxHzIn.value);
-
-      // keep span, clamp within base range
-      const shift = clamp(nx0, minAll, maxAll-span) - nx0;
-      nx0 += shift; nx1 += shift;
-
-      specZoom.active = true;
-      specZoom.x0 = nx0;
-      specZoom.x1 = nx1;
-    }
-  }
-
-  // Double click zoom reset (ALWAYS allowed)
-  wrapWave.addEventListener('dblclick', (e) => { resetWaveZoom(); clearOverlay('wave'); drawOnce(); });
-  wrapSpec.addEventListener('dblclick', (e) => { resetSpecZoom(); clearOverlay('spec'); drawOnce(); });
-
-  // mouse events
-  wrapWave.addEventListener('mousemove', (e) => onMove('wave', e));
-  wrapSpec.addEventListener('mousemove', (e) => onMove('spec', e));
-  wrapWave.addEventListener('mousedown', (e) => onDown('wave', e));
-  wrapSpec.addEventListener('mousedown', (e) => onDown('spec', e));
-  window.addEventListener('mouseup', (e) => { onUp('wave', e); onUp('spec', e); });
-  window.addEventListener('mousemove', (e) => { onDrag('wave', e); onDrag('spec', e); });
-
-  // Pointer events for touch gestures
-  function handlePointerDown(target, ev){
-    if (ev.pointerType === 'mouse') return; // mouse handled above
-    ev.preventDefault();
-    const wrap = (target==='wave') ? wrapWave : wrapSpec;
-    wrap.setPointerCapture(ev.pointerId);
-    pointers.set(ev.pointerId, {x: ev.clientX, y: ev.clientY});
-
-    if (pointers.size === 2){
-      // start pinch gesture (Pause only for zoom; but allow reset anytime is already dblclick)
-      if (appState !== State.PAUSED) return;
-      if (mode !== Mode.ZOOM) return;
-
-      const pts = [...pointers.values()];
-      const dx = pts[1].x - pts[0].x;
-      const dy = pts[1].y - pts[0].y;
-      const dist = Math.hypot(dx, dy);
-      const cx = (pts[0].x + pts[1].x) / 2;
-      const cy = (pts[0].y + pts[1].y) / 2;
-
-      gesture = {
-        target,
-        startDist: dist,
-        startCenter: {x: cx, y: cy},
-        startWaveZoom: {...waveZoom},
-        startSpecZoom: {...specZoom},
-      };
-    }
-  }
-  function handlePointerMove(target, ev){
-    if (ev.pointerType === 'mouse') return;
-    if (!pointers.has(ev.pointerId)) return;
-    pointers.set(ev.pointerId, {x: ev.clientX, y: ev.clientY});
-
-    if (pointers.size === 2 && gesture && gesture.target === target){
-      if (appState !== State.PAUSED) return;
-      if (mode !== Mode.ZOOM) return;
-
-      const pts = [...pointers.values()];
-      const dx = pts[1].x - pts[0].x;
-      const dy = pts[1].y - pts[0].y;
-      const dist = Math.hypot(dx, dy);
-      const cx = (pts[0].x + pts[1].x) / 2;
-      const cy = (pts[0].y + pts[1].y) / 2;
-
-      const scale = dist / Math.max(1e-6, gesture.startDist);
-      const panX = cx - gesture.startCenter.x;
-      const panY = cy - gesture.startCenter.y;
-
-      if (target === 'wave'){
-        // pinch zoom both axes; two-finger pan
-        const z0 = gesture.startWaveZoom;
-        const baseX0 = z0.active ? z0.x0 : 0;
-        const baseX1 = z0.active ? z0.x1 : waveWindowSec;
-        const baseY0 = z0.active ? Math.min(z0.y0,z0.y1) : -1;
-        const baseY1 = z0.active ? Math.max(z0.y0,z0.y1) : 1;
-
-        const spanX = (baseX1 - baseX0) / scale;
-        const spanY = (baseY1 - baseY0) / scale;
-
-        // anchor around center in plot space
-        const rect = wrapWave.getBoundingClientRect();
-        const nx = (cx - rect.left) / rect.width;
-        const ny = (cy - rect.top) / rect.height;
-
-        const centerX = lerp(baseX0, baseX1, clamp(nx,0,1));
-        const centerY = lerp(baseY1, baseY0, clamp(ny,0,1)); // inverted
-
-        let nx0 = centerX - spanX/2;
-        let nx1 = centerX + spanX/2;
-
-        // pan from finger movement (approx)
-        const dxs = -(panX / rect.width) * (baseX1 - baseX0);
-        const dys =  (panY / rect.height) * (baseY1 - baseY0);
-
-        nx0 += dxs; nx1 += dxs;
-
-        // constrain x to [0, window]
-        const minAll = 0, maxAll = waveWindowSec;
-        const span = nx1 - nx0;
-        const shift = clamp(nx0, minAll, maxAll-span) - nx0;
-        nx0 += shift; nx1 += shift;
-
-        const ny0 = (centerY - spanY/2) + dys;
-        const ny1 = (centerY + spanY/2) + dys;
-
-        waveZoom.active = true;
-        waveZoom.x0 = clamp(nx0, 0, waveWindowSec);
-        waveZoom.x1 = clamp(nx1, 0, waveWindowSec);
-        waveZoom.y0 = ny0;
-        waveZoom.y1 = ny1;
-
-        drawOnce();
-      } else {
-        // spectrum: pinch zoom x, pan x
-        const z0 = gesture.startSpecZoom;
-        const baseX0 = z0.active ? z0.x0 : parseFloat(minHzIn.value);
-        const baseX1 = z0.active ? z0.x1 : parseFloat(maxHzIn.value);
-        const rect = wrapSpec.getBoundingClientRect();
-        const nx = (cx - rect.left) / rect.width;
-        const centerX = lerp(baseX0, baseX1, clamp(nx,0,1));
-        const spanX = (baseX1 - baseX0) / scale;
-
-        let nx0 = centerX - spanX/2;
-        let nx1 = centerX + spanX/2;
-
-        const dHz = -(panX / rect.width) * (baseX1 - baseX0);
-        nx0 += dHz; nx1 += dHz;
-
-        // clamp within base range inputs
-        const minAll = parseFloat(minHzIn.value);
-        const maxAll = parseFloat(maxHzIn.value);
-        const span = nx1 - nx0;
-        const shift = clamp(nx0, minAll, maxAll-span) - nx0;
-        nx0 += shift; nx1 += shift;
-
-        specZoom.active = true;
-        specZoom.x0 = nx0;
-        specZoom.x1 = nx1;
-
-        drawOnce();
-      }
-    }
-  }
-  function handlePointerUp(target, ev){
-    if (ev.pointerType === 'mouse') return;
-    pointers.delete(ev.pointerId);
-    if (pointers.size < 2){
-      gesture = null;
-    }
-  }
-
-  wrapWave.addEventListener('pointerdown', (e) => handlePointerDown('wave', e));
-  wrapWave.addEventListener('pointermove', (e) => handlePointerMove('wave', e));
-  wrapWave.addEventListener('pointerup', (e) => handlePointerUp('wave', e));
-  wrapWave.addEventListener('pointercancel', (e) => handlePointerUp('wave', e));
-
-  wrapSpec.addEventListener('pointerdown', (e) => handlePointerDown('spec', e));
-  wrapSpec.addEventListener('pointermove', (e) => handlePointerMove('spec', e));
-  wrapSpec.addEventListener('pointerup', (e) => handlePointerUp('spec', e));
-  wrapSpec.addEventListener('pointercancel', (e) => handlePointerUp('spec', e));
-
-  // Click handling for A/B already handled in onDown; but we also want single tap pick on touch
-  function touchTapPick(target, ev){
-    if (appState !== State.PAUSED) return;
-    if (mode !== Mode.PICK) return;
-    // if it was pinch, ignore
-    if (pointers.size >= 2) return;
-
-    const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-    const pt = (target==='wave') ? pickWaveAtCanvas(p.x,p.y) : pickSpecAtCanvas(p.x,p.y);
-    if (!pt) return;
-    cycleAB(target, pt);
-    drawOnce();
-  }
-  wrapWave.addEventListener('click', (e) => touchTapPick('wave', e));
-  wrapSpec.addEventListener('click', (e) => touchTapPick('spec', e));
-
-  // ---------- Pause snapshot correctness (fix: spectrum doesn't change on click) ----------
-  // We freeze snapSpec at pause time; click doesn't recalc it.
-
-  // ---------- On entering PAUSED, ensure snapshot fixed ----------
-  // already in pauseToggle()
-
-  // ---------- CSV shortcut must work only in PAUSED (handled) ----------
-
-  // ---------- Initialize defaults ----------
-  function initUI(){
-    setTheme('light');
-    setView('both');
-    setMode(Mode.ZOOM);
-    setWaveWindow(1.0);
-    setSpecRange(200, 1500);
-    setFFTSize(8192);
-    setYAxisMode('norm');
-    setAppState(State.STOPPED);
-    resizeCanvases();
-    drawOnce();
-    updateDeltas();
-  }
-
-  // ---------- Prevent accidental wheel zoom (explicitly do nothing) ----------
-  wrapWave.addEventListener('wheel', (e) => { e.preventDefault(); }, {passive:false});
-  wrapSpec.addEventListener('wheel', (e) => { e.preventDefault(); }, {passive:false});
-
-  // ---------- If user changes y-mode while paused, update AB Δ + peaks + CSV linkage ----------
-  // We snapshot on change; AB values remain numeric from old mode.
-  // For strict linkage, we recommend re-pick after change; Esc clears.
-  // (User requirement: "連動" primarily means the numbers shown use the same mode; we satisfy by cursor/draw/CSV using yMode.)
-
-  // ---------- Pause / Running labels ----------
-  function updateStatusLines(){
-    // nothing extra for now
-  }
-
-  initUI();
 })();
 </script>
 </body>

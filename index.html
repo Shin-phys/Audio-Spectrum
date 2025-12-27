@@ -1090,16 +1090,19 @@
 
     // y range: apply gain to zoom-y concept so that cursor/AB align with visual
     // waveZoom.y0/y1 are RAW zoom box; display multiplies by gain
-    let yMinDisp = -1 * waveGain;
-    let yMaxDisp =  1 * waveGain;
-    if (waveZoom.active){
-      const r0 = Math.min(waveZoom.y0, waveZoom.y1);
-      const r1 = Math.max(waveZoom.y0, waveZoom.y1);
-      if (Math.abs(r1-r0) > 1e-9){
-        yMinDisp = r0 * waveGain;
-        yMaxDisp = r1 * waveGain;
-      }
-    }
+// y軸レンジは「raw基準」で決める（waveGainはここに掛けない）
+let yMinDisp = -1;
+let yMaxDisp =  1;
+
+if (waveZoom.active){
+  const r0 = Math.min(waveZoom.y0, waveZoom.y1);
+  const r1 = Math.max(waveZoom.y0, waveZoom.y1);
+  if (Math.abs(r1 - r0) > 1e-9){
+    yMinDisp = r0;  // ← *waveGainしない
+    yMaxDisp = r1;  // ← *waveGainしない
+  }
+}
+
 
     // ticks
     const ticks = computeTicks(xMin, xMax, 5);

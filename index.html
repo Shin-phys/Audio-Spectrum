@@ -486,10 +486,10 @@
 
   // Touch gesture (pinch / pan)
   const pointers = new Map(); // id -> {x,y}
-  let gesture = null; // {target, 
+  let gesture = null; // {target, startDist, startCenter, startZoom}
   // mobile double-tap detection
   const lastTap = {wave:{t:0,x:0,y:0}, spec:{t:0,x:0,y:0}};
-startDist, startCenter, startZoom}
+
 
   // ---------- Canvas Setup ----------
   function resizeCanvases(){

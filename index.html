@@ -189,6 +189,7 @@
     <div class="group">
       <button id="btnMode">2点選択へ</button>
       <button id="btnTheme">ダークへ</button>
+      <button id="btnZoomReset">ズームリセット</button>
     </div>
 
     <div class="spacer"></div>
@@ -362,6 +363,7 @@
 
   const btnMode = document.getElementById('btnMode');
   const btnTheme = document.getElementById('btnTheme');
+  const btnZoomReset = document.getElementById('btnZoomReset');
 
   const pillState = document.getElementById('pillState');
 
@@ -486,9 +488,11 @@
 
   // Touch gesture (pinch / pan)
   const pointers = new Map(); // id -> {x,y}
-  let gesture = null; // {target, startDist, startCenter, startZoom}
+  let gesture = null; // {target,startDist, startCenter, startZoom}
   // mobile double-tap detection
   const lastTap = {wave:{t:0,x:0,y:0}, spec:{t:0,x:0,y:0}};
+  const touchTap = {active:false, target:null, pointerId:null, x0:0, y0:0, moved:false};
+
 
 
   // ---------- Canvas Setup ----------
@@ -547,6 +551,17 @@
     drawOnce();
   }
   btnTheme.addEventListener('click', () => setTheme(theme==='light' ? 'dark' : 'light'));
+
+  // ---------- Zoom Reset ----------
+  if (btnZoomReset){
+    btnZoomReset.addEventListener('click', () => {
+      resetWaveZoom();
+      resetSpecZoom();
+      clearOverlay('wave');
+      clearOverlay('spec');
+      drawOnce();
+    });
+  }
 
   // ---------- Mode toggle (show "switch-to") ----------
   function setMode(m){
@@ -1462,32 +1477,47 @@
     ctx.textAlign = 'right';
     ctx.fillText('Hz', padL+pw, padT - 26);
 
-    // draw spectrum min/max per pixel
+    // draw spectrum
     ctx.strokeStyle = c.accent;
     ctx.lineWidth = 1.5 * Math.max(1, devicePixelRatio*0.6);
-    ctx.beginPath();
 
     const nVis = i1 - i0 + 1;
     const pxCount = Math.max(1, Math.floor(pw));
     const spp = nVis / pxCount;
 
-    for (let px=0; px<pxCount; px++){
-      const a = Math.floor(i0 + px*spp);
-      const b = Math.floor(i0 + (px+1)*spp);
-      let mn =  1e9, mx = -1e9;
-      const bb = Math.min(i1, Math.max(a+1, b));
-      for (let i=a; i<=bb; i++){
+    if (appState === State.PAUSED && spp <= 2.2){
+      // ズーム後・Pause中：滑らかな折れ線で描画（荒さ対策）
+      ctx.beginPath();
+      for (let i=i0;i<=i1;i++){
+        const x = padL + ((i - i0) / Math.max(1, nVis-1)) * pw;
         const v = yArr[i];
-        if (v < mn) mn = v;
-        if (v > mx) mx = v;
+        const y = padT + (1 - (v - yMin)/(yMax-yMin)) * ph;
+        if (i === i0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
       }
-      const x = padL + (px / (pxCount-1)) * pw;
-      const y1p = padT + (1 - (mx - yMin)/(yMax-yMin)) * ph;
-      const y2p = padT + (1 - (mn - yMin)/(yMax-yMin)) * ph;
-      ctx.moveTo(x, y1p);
-      ctx.lineTo(x, y2p);
+      ctx.stroke();
+    } else {
+      // 密な領域：min/max を縦線で描画（エイリアシング抑制）
+      ctx.beginPath();
+      const spp2 = Math.max(1, spp);
+      for (let px=0; px<pxCount; px++){
+        const a = Math.floor(i0 + px*spp2);
+        const b = Math.floor(i0 + (px+1)*spp2);
+        let mn =  1e9, mx = -1e9;
+        const bb = Math.min(i1, Math.max(a+1, b));
+        for (let i=a; i<=bb; i++){
+          const v = yArr[i];
+          if (v < mn) mn = v;
+          if (v > mx) mx = v;
+        }
+        const x = padL + (px / Math.max(1, (pxCount-1))) * pw;
+        const y1p = padT + (1 - (mx - yMin)/(yMax-yMin)) * ph;
+        const y2p = padT + (1 - (mn - yMin)/(yMax-yMin)) * ph;
+        ctx.moveTo(x, y1p);
+        ctx.lineTo(x, y2p);
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
 
     // cursor highlight + bubble (Pause only)
     if (appState === State.PAUSED && cursorSpec.active){
@@ -1655,6 +1685,8 @@
     return {x,y};
   }
 
+  const tapPick = {active:false, target:null, x0:0, y0:0, moved:false};
+
   function onMove(target, ev){
     if (appState !== State.PAUSED) return;
     if (drag.active) return;
@@ -1678,44 +1710,54 @@
     }
   }
 
-  function onDown(target, ev){
+    function onDown(target, ev){
     const isShift = ev.shiftKey;
-    const isDbl = ev.detail === 2; // dblclick fallback
-    // dblclick handled separately for reliability
-    if (appState === State.PAUSED){
-      // 2-point mode click pick
-      if (mode === Mode.PICK){
-        if (target==='wave'){
-          const p = canvasPosFromEvent(ev, cvWave);
-          const pt = pickWaveAtCanvas(p.x,p.y);
-          if (!pt) return;
-          cycleAB('wave', pt);
-          drawOnce();
-          return;
-        } else {
-          const p = canvasPosFromEvent(ev, cvSpec);
-          const pt = pickSpecAtCanvas(p.x,p.y);
-          if (!pt) return;
-          cycleAB('spec', pt);
-          drawOnce();
-          return;
-        }
-      }
+    if (appState !== State.PAUSED) return;
 
-      // zoom mode: start drag
-      if (mode === Mode.ZOOM){
-        drag.active = true;
-        drag.kind = isShift ? 'pan' : 'zoom';
-        drag.target = target;
-        const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-        drag.x0 = drag.x1 = p.x;
-        drag.y0 = drag.y1 = p.y;
-        if (!isShift) drawOverlayRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
-      }
+    // 2点選択モード：ドラッグではなく「クリックして離す」で点を確定
+    if (mode === Mode.PICK){
+      const cv = (target==='wave') ? cvWave : cvSpec;
+      const p = canvasPosFromEvent(ev, cv);
+      tapPick.active = true;
+      tapPick.target = target;
+      tapPick.x0 = p.x;
+      tapPick.y0 = p.y;
+      tapPick.moved = false;
+      return;
+    }
+
+    // ズームモード：ドラッグ開始
+    if (mode === Mode.ZOOM){
+      drag.active = true;
+      drag.kind = isShift ? 'pan' : 'zoom';
+      drag.target = target;
+      const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
+      drag.x0 = drag.x1 = p.x;
+      drag.y0 = drag.y1 = p.y;
+      if (!isShift) drawOverlayRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
     }
   }
 
-  function onUp(target, ev){
+    function onUp(target, ev){
+    // tap-pick (PICKモード)
+    if (tapPick.active && tapPick.target === target){
+      const cv = (target==='wave') ? cvWave : cvSpec;
+      const p = canvasPosFromEvent(ev, cv);
+      const dx = p.x - tapPick.x0;
+      const dy = p.y - tapPick.y0;
+      const moved = tapPick.moved || (dx*dx + dy*dy) > (8*8);
+      tapPick.active = false;
+
+      if (!moved && appState === State.PAUSED && mode === Mode.PICK){
+        const pt = (target==='wave') ? pickWaveAtCanvas(p.x,p.y) : pickSpecAtCanvas(p.x,p.y);
+        if (pt){
+          cycleAB(target, pt);
+          drawOnce();
+        }
+      }
+      return;
+    }
+
     if (!drag.active || drag.target !== target) return;
 
     const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
@@ -1732,7 +1774,16 @@
     drawOnce();
   }
 
-  function onDrag(target, ev){
+    function onDrag(target, ev){
+    // tap-pick の移動判定（少しでもドラッグしたら pick をキャンセル）
+    if (tapPick.active && tapPick.target === target){
+      const cv = (target==='wave') ? cvWave : cvSpec;
+      const p = canvasPosFromEvent(ev, cv);
+      const dx = p.x - tapPick.x0;
+      const dy = p.y - tapPick.y0;
+      if ((dx*dx + dy*dy) > (8*8)) tapPick.moved = true;
+    }
+
     if (!drag.active || drag.target !== target) return;
     const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
     drag.x1 = p.x; drag.y1 = p.y;
@@ -1888,19 +1939,43 @@
   window.addEventListener('mousemove', (e) => { onDrag('wave', e); onDrag('spec', e); });
 
   // Pointer events for touch gestures
-  function handlePointerDown(target, ev){
+    function handlePointerDown(target, ev){
     if (ev.pointerType === 'mouse') return; // mouse handled above
     ev.preventDefault();
+
     const wrap = (target==='wave') ? wrapWave : wrapSpec;
     wrap.setPointerCapture(ev.pointerId);
+
+    // register pointer
     pointers.set(ev.pointerId, {x: ev.clientX, y: ev.clientY});
 
+    // PICKモード（Pause中のみ）：単指タップでA/B選択
+    if (appState === State.PAUSED && mode === Mode.PICK){
+      // pinch になったらキャンセルするので、まずは候補として保持
+      if (pointers.size === 1){
+        touchTap.active = true;
+        touchTap.target = target;
+        touchTap.pointerId = ev.pointerId;
+        touchTap.x0 = ev.clientX;
+        touchTap.y0 = ev.clientY;
+        touchTap.moved = false;
+      } else {
+        // 2本指以上になったらタップ候補はキャンセル
+        touchTap.active = false;
+      }
+      return;
+    }
+
+    // ZOOMモード：2本指ピンチ開始（Pause中のみ）
     if (pointers.size === 2){
       // start pinch gesture（Pause中のズームモードのみ有効）
       if (appState !== State.PAUSED || mode !== Mode.ZOOM){
         gesture = null;
         return;
       }
+      // cancel any residual tap
+      touchTap.active = false;
+
       const pts = [...pointers.values()];
       const dx = pts[1].x - pts[0].x;
       const dy = pts[1].y - pts[0].y;
@@ -1917,10 +1992,19 @@
       };
     }
   }
-  function handlePointerMove(target, ev){
+    function handlePointerMove(target, ev){
     if (ev.pointerType === 'mouse') return;
     if (!pointers.has(ev.pointerId)) return;
+    ev.preventDefault();
     pointers.set(ev.pointerId, {x: ev.clientX, y: ev.clientY});
+
+    // PICKモード：タップ候補の移動量を監視（動いたらキャンセル）
+    if (touchTap.active && touchTap.pointerId === ev.pointerId){
+      const dx = ev.clientX - touchTap.x0;
+      const dy = ev.clientY - touchTap.y0;
+      if ((dx*dx + dy*dy) > (12*12)) touchTap.moved = true;
+    }
+
 
     if (pointers.size === 2 && gesture && gesture.target === target){
       if (appState !== State.PAUSED) return;
@@ -2012,10 +2096,30 @@
       }
     }
   }
-  function handlePointerUp(target, ev){
+    function handlePointerUp(target, ev){
     if (ev.pointerType === 'mouse') return;
+    ev.preventDefault();
 
-    // double-tap to reset zoom (mobile)
+    // PICKモード（Pause中のみ）：指を離したときに点を確定
+    if (touchTap.active && touchTap.pointerId === ev.pointerId && touchTap.target === target){
+      const dx = ev.clientX - touchTap.x0;
+      const dy = ev.clientY - touchTap.y0;
+      const moved = touchTap.moved || (dx*dx + dy*dy) > (12*12);
+      touchTap.active = false;
+
+      if (!moved && appState === State.PAUSED && mode === Mode.PICK){
+        const cv = (target==='wave') ? cvWave : cvSpec;
+        const p = canvasPosFromEvent(ev, cv);
+        const pt = (target==='wave') ? pickWaveAtCanvas(p.x,p.y) : pickSpecAtCanvas(p.x,p.y);
+        if (pt){
+          cycleAB(target, pt);
+          drawOnce();
+        }
+      }
+      // ここで return しない：ダブルタップ判定やポインタ管理は続行
+    }
+
+// double-tap to reset zoom (mobile)
     if (ev.pointerType === 'touch'){
       const now = performance.now();
       const r = wrapRect(target);
@@ -2051,22 +2155,6 @@
   wrapSpec.addEventListener('pointermove', (e) => handlePointerMove('spec', e));
   wrapSpec.addEventListener('pointerup', (e) => handlePointerUp('spec', e));
   wrapSpec.addEventListener('pointercancel', (e) => handlePointerUp('spec', e));
-
-  // Click handling for A/B already handled in onDown; but we also want single tap pick on touch
-  function touchTapPick(target, ev){
-    if (appState !== State.PAUSED) return;
-    if (mode !== Mode.PICK) return;
-    // if it was pinch, ignore
-    if (pointers.size >= 2) return;
-
-    const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-    const pt = (target==='wave') ? pickWaveAtCanvas(p.x,p.y) : pickSpecAtCanvas(p.x,p.y);
-    if (!pt) return;
-    cycleAB(target, pt);
-    drawOnce();
-  }
-  wrapWave.addEventListener('click', (e) => touchTapPick('wave', e));
-  wrapSpec.addEventListener('click', (e) => touchTapPick('spec', e));
 
   // ---------- Pause snapshot correctness (fix: spectrum doesn't change on click) ----------
   // We freeze snapSpec at pause time; click doesn't recalc it.

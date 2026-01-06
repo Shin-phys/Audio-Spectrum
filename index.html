@@ -1,1848 +1,1996 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>マイク入力 波形＋音響スペクトル</title>
-  <style>
-    :root{
-      --bg:#ffffff; --fg:#111111; --muted:#666;
-      --panel:#f4f5f7; --border:#d7dbe0;
-      --accent:#1e66ff; --accent2:#ff2d55;
-      --grid: rgba(0,0,0,.08);
-      --overlay: rgba(30,102,255,.18);
-      --overlayBorder: rgba(30,102,255,.7);
-      --btn:#ffffff; --btnfg:#111; --btnbd:#cfd6dd;
-      --shadow: rgba(0,0,0,.06);
-      --deltaBg: rgba(127,127,127,.10);
-      --deltaBd: rgba(127,127,127,.25);
-    }
-    [data-theme="dark"]{
-      --bg:#0b0c10; --fg:#f2f3f5; --muted:#a9b0ba;
-      --panel:#141720; --border:#2a3240;
-      --grid: rgba(255,255,255,.10);
-      --overlay: rgba(110,170,255,.18);
-      --overlayBorder: rgba(110,170,255,.75);
-      --btn:#10131a; --btnfg:#f2f3f5; --btnbd:#2a3240;
-      --shadow: rgba(0,0,0,.35);
-      --deltaBg: rgba(255,255,255,.08);
-      --deltaBd: rgba(255,255,255,.18);
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0; background:var(--bg); color:var(--fg);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
-    }
-    .app{
-      max-width: 1280px; margin: 0 auto; padding: 12px;
-      display:flex; flex-direction:column; gap:10px;
-    }
-    .topbar{
-      background:var(--panel); border:1px solid var(--border); border-radius:12px;
-      padding:10px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;
-      box-shadow: 0 2px 12px var(--shadow);
-    }
-    .group{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-    .spacer{flex:1}
-    button, select, input[type="number"]{
-      background:var(--btn); color:var(--btnfg);
-      border:1px solid var(--btnbd); border-radius:10px;
-      padding:8px 10px; font-size:14px; line-height:1;
-      box-shadow: 0 1px 6px var(--shadow);
-    }
-    button{cursor:pointer}
-    button:disabled{opacity:.5; cursor:not-allowed}
-    button.primary{
-      border-color: transparent; background: var(--accent); color: #fff;
-    }
-    button.danger{
-      border-color: transparent; background: var(--accent2); color:#fff;
-    }
-    .seg{
-      display:flex; border:1px solid var(--btnbd); border-radius:12px; overflow:hidden;
-      box-shadow: 0 1px 6px var(--shadow);
-    }
-    .seg button{
-      border:none; border-right:1px solid var(--btnbd);
-      border-radius:0; box-shadow:none; padding:9px 12px;
-      background:var(--btn); color:var(--btnfg);
-    }
-    .seg button:last-child{border-right:none}
-    .seg button.active{
-      background: var(--accent); color:#fff;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>マイク入力 波形＋音響スペクトル</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#111111; --muted:#666;
+    --panel:#f2f2f2; --border:#d0d0d0;
+    --accent:#0b57d0; --warn:#b00020;
+  }
+  body.dark{
+    --bg:#0b0b0b; --fg:#f2f2f2; --muted:#b5b5b5;
+    --panel:#151515; --border:#2a2a2a;
+    --accent:#7aa7ff; --warn:#ff6b6b;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif;
+    background:var(--bg);
+    color:var(--fg);
+    overflow:hidden;
+  }
 
-    .content{display:flex; flex-direction:column; gap:10px;}
-    .dual{display:flex; gap:10px; align-items:stretch; flex-direction:column;}
-    @media (min-width: 980px){ .dual.row{flex-direction:row} }
+  .topbar{
+    position:sticky; top:0; z-index:10;
+    display:flex; flex-wrap:wrap; gap:8px;
+    padding:10px;
+    background:var(--panel);
+    border-bottom:1px solid var(--border);
+    align-items:center;
+  }
+  .group{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  button, select, input[type="number"]{
+    font-size:14px;
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:var(--bg);
+    color:var(--fg);
+    min-height:36px;
+  }
+  button{
+    cursor:pointer;
+  }
+  button.primary{
+    border-color: var(--accent);
+  }
+  button:disabled{
+    opacity:.5; cursor:not-allowed;
+  }
+  .pill{
+    padding:6px 10px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:var(--bg);
+    color:var(--fg);
+    font-size:13px;
+  }
+  .status{
+    font-size:13px;
+    color:var(--muted);
+    padding:6px 10px;
+    border-left:1px solid var(--border);
+    margin-left:auto;
+    min-width:220px;
+  }
+  .status strong{ color:var(--fg); }
 
-    .panel{
-      background:var(--panel); border:1px solid var(--border);
-      border-radius:12px; padding:10px;
-      box-shadow: 0 2px 12px var(--shadow);
-      display:flex; flex-direction:column; gap:8px;
-      min-width: 0;
-    }
-    .panelHeader{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-    .panelHeader h2{margin:0; font-size:16px; font-weight:700;}
-    .panelHeader .controls{
-      margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-    }
-    .controlRow{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
-    label{font-size:13px; color:var(--muted)}
-    input[type="range"]{width: 190px}
-    .canvasWrap{
-      position:relative; width:100%;
-      border:1px solid var(--border); border-radius:12px;
-      overflow:hidden; background:var(--bg);
-      touch-action: none;
-      user-select: none; -webkit-user-select: none;
-    }
-    canvas{display:block; width:100%; height:320px}
-    .big canvas{height:520px}
-    .overlayRect{position:absolute; inset:0; pointer-events:none;}
-    .infoBubble{
-      position:absolute;
-      background: rgba(0,0,0,.78);
-      color:#fff; padding:6px 8px; border-radius:10px;
-      font-size:12px; white-space:nowrap;
-      transform: translate(10px, -10px);
-      pointer-events:none; display:none; max-width: 80%;
-    }
-    [data-theme="dark"] .infoBubble{
-      background: rgba(255,255,255,.12);
-      border: 1px solid rgba(255,255,255,.18);
-    }
-    .footer{display:flex; flex-direction:column; gap:6px; padding-top:2px;}
-    .delta{
-      font-size:18px; font-weight:900; letter-spacing:.2px;
-      color: var(--fg);
-      background: var(--deltaBg);
-      border: 1px solid var(--deltaBd);
-      padding: 8px 10px;
-      border-radius: 12px;
-    }
-    .small{font-size:13px; color:var(--muted); line-height:1.35;}
-    .status{
-      padding:10px;
-      background: var(--panel); border:1px solid var(--border);
-      border-radius:12px;
-      box-shadow: 0 2px 12px var(--shadow);
-    }
-    .pill{
-      display:inline-block; padding:2px 8px; border-radius:999px;
-      border:1px solid var(--border); margin-right:6px;
-      font-size:12px; color:var(--muted);
-    }
-    .kbd{
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      padding:1px 6px; border-radius:7px;
-      border:1px solid var(--border);
-      background: rgba(127,127,127,.12);
-      color: var(--fg);
-      margin: 0 2px;
-    }
-  </style>
+  .content{
+    height: calc(100% - 64px);
+    display:flex;
+    flex-direction:column;
+  }
+
+  .views{
+    flex:1;
+    display:flex;
+    gap:10px;
+    padding:10px;
+    overflow:hidden;
+  }
+  .panel{
+    flex:1;
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:14px;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+  }
+  .panelHeader{
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+    padding:10px 12px;
+    border-bottom:1px solid var(--border);
+    background:var(--panel);
+  }
+  .panelHeader h2{
+    margin:0;
+    font-size:16px;
+    line-height:1.2;
+  }
+  .panelHeader .rightControls{
+    margin-left:auto;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+    justify-content:flex-end;
+  }
+  .panelBody{
+    flex:1;
+    position:relative;
+    min-height:0;
+  }
+  canvas{
+    width:100%;
+    height:100%;
+    display:block;
+    touch-action:none; /* ピンチズーム自前 */
+    background:transparent;
+  }
+  .infoOverlay{
+    position:absolute;
+    left:10px;
+    top:10px;
+    font-size:13px;
+    color:var(--muted);
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:6px 8px;
+    pointer-events:none;
+    max-width: min(420px, 95%);
+  }
+  .deltaBox{
+    border-top:1px solid var(--border);
+    padding:10px 12px;
+    background:var(--panel);
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .deltaBox .big{
+    font-size:18px;
+    font-weight:700;
+  }
+  .deltaBox .muted{
+    color:var(--muted);
+    font-size:13px;
+  }
+
+  .footer{
+    padding:10px 12px;
+    border-top:1px solid var(--border);
+    background:var(--panel);
+    color:var(--muted);
+    font-size:13px;
+    overflow:auto;
+    max-height:22vh;
+  }
+  .footer b{ color:var(--fg); }
+
+  .row{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  label{
+    font-size:13px;
+    color:var(--muted);
+    display:flex; gap:6px; align-items:center;
+  }
+  input[type="range"]{ width:160px; }
+  .hint{
+    color:var(--muted);
+    font-size:12px;
+  }
+  .warn{
+    color:var(--warn);
+    font-weight:600;
+  }
+
+  /* 表示モード */
+  body.view-wave .panel.spectrum{ display:none; }
+  body.view-spec .panel.wave{ display:none; }
+  body.view-both .panel.wave, body.view-both .panel.spectrum{ display:flex; }
+
+  /* 同時表示：PCは横並び、スマホは縦 */
+  @media (max-width: 820px){
+    .views{ flex-direction:column; }
+    .status{ margin-left:0; width:100%; border-left:none; border-top:1px solid var(--border); padding-top:10px; }
+    .content{ height: calc(100% - 118px); }
+    input[type="range"]{ width:140px; }
+  }
+</style>
 </head>
-<body>
-<div class="app" id="app" data-theme="light">
+<body class="view-both">
   <div class="topbar">
     <div class="group">
-      <button id="btnStart" class="primary">Start</button>
-      <button id="btnPause">Pause</button>
-      <button id="btnReset" class="danger">Reset</button>
+      <button id="btnStart" class="primary" title="S">Start</button>
+      <button id="btnPause" disabled title="P">Pause</button>
+      <button id="btnReset" disabled title="R">Reset</button>
     </div>
 
     <div class="group">
-      <div class="seg" aria-label="表示切替">
-        <button id="tabBoth" class="active">同時表示</button>
-        <button id="tabWave">波形のみ</button>
-        <button id="tabSpec">音響スペクトルのみ</button>
-      </div>
+      <span class="pill">表示</span>
+      <button id="btnViewBoth" class="primary" title="B">同時表示</button>
+      <button id="btnViewWave" title="W">波形のみ</button>
+      <button id="btnViewSpec" title="F">音響スペクトルのみ</button>
     </div>
 
     <div class="group">
-      <button id="btnMode">2点選択へ</button>
-      <button id="btnTheme">ダークへ</button>
+      <span class="pill">操作</span>
+      <button id="btnMode" class="primary" title="Z">2点選択へ</button>
+      <button id="btnTheme" title="ライト/ダーク">ダークへ</button>
+      <button id="btnZoomReset" title="ダブルクリックでも可">ズームリセット</button>
     </div>
 
-    <div class="spacer"></div>
-
-    <div class="group">
-      <span class="pill" id="pillState">停止中</span>
-      <span class="pill" id="pillHint">ショートカット: <span class="kbd">S</span><span class="kbd">P</span><span class="kbd">R</span><span class="kbd">Z</span><span class="kbd">W</span><span class="kbd">F</span><span class="kbd">B</span><span class="kbd">V</span><span class="kbd">Esc</span></span>
+    <div class="status" id="status">
+      状態：<strong id="stRun">停止</strong> ／ モード：<strong id="stMode">ズーム</strong><br>
+      サンプル：<strong id="stSR">-</strong> Hz ／ 取得窓：<strong id="stWin">1.00</strong> s
     </div>
   </div>
 
   <div class="content">
-    <div id="dual" class="dual row">
-      <!-- WAVE -->
-      <section id="panelWave" class="panel">
+    <div class="views">
+      <!-- 波形 -->
+      <div class="panel wave">
         <div class="panelHeader">
           <h2>波形</h2>
-          <div class="controls">
-            <div class="controlRow">
-              <label for="waveWinRange">波形時間窓（N秒）</label>
-              <input id="waveWinRange" type="range" min="0.05" max="1.0" step="0.01" value="1.0" />
-              <input id="waveWinNum" type="number" min="0.05" max="1.0" step="0.01" value="1.0" style="width:86px" />
+          <div class="rightControls">
+            <div class="row">
+              <label>波形時間窓（N秒）
+                <input id="waveWin" type="range" min="0.05" max="1.0" step="0.01" value="1.0">
+              </label>
+              <input id="waveWinNum" type="number" min="0.05" max="1.0" step="0.01" value="1.0" style="width:90px">
+              <span class="hint">0.05〜1.00</span>
             </div>
-
-            <div class="controlRow">
-              <label for="waveGainRange">縦軸倍率（測定中）</label>
-              <input id="waveGainRange" type="range" min="0.2" max="20" step="0.1" value="5.0" />
-              <input id="waveGainNum" type="number" min="0.2" max="20" step="0.1" value="5.0" style="width:86px" />
-            </div>
-
-            <div class="controlRow">
-              <button id="btnWaveABClear">A/B解除</button>
-              <button id="btnWaveCSV" disabled>CSV</button>
+            <div class="row">
+              <label>縦軸ズーム
+                <input id="waveYZoom" type="range" min="0.2" max="5" step="0.05" value="1">
+              </label>
+              <span class="hint">（波形のみ）</span>
             </div>
           </div>
         </div>
-
-        <div class="canvasWrap" id="wrapWave" aria-label="波形キャンバス">
-          <canvas id="cvWave" width="1200" height="360"></canvas>
-          <canvas class="overlayRect" id="ovWave" width="1200" height="360"></canvas>
-          <div class="infoBubble" id="bubbleWave"></div>
+        <div class="panelBody">
+          <canvas id="cvWave"></canvas>
+          <div class="infoOverlay" id="waveInfo">Pause中：カーソルで値表示、2点選択でΔ表示。<br>PC：ドラッグで矩形ズーム／Shift+ドラッグで移動／ダブルクリックでリセット<br>スマホ：ピンチでズーム／2本指で移動</div>
         </div>
-
-        <div class="footer">
-          <div class="delta" id="deltaWave">Δ: —</div>
-          <div class="small" id="descWave">
-            状態：<span id="waveStateText">停止中</span> / Pause中のみズーム・2点選択が有効（ズームリセットは常に有効）。縦軸倍率は<b>測定中のみ</b>適用されます。
-          </div>
+        <div class="deltaBox">
+          <div class="big" id="waveDelta">Δ：—</div>
+          <div class="muted" id="waveCursor">カーソル：—</div>
         </div>
-      </section>
+      </div>
 
-      <!-- SPECTRUM -->
-      <section id="panelSpec" class="panel">
+      <!-- スペクトル -->
+      <div class="panel spectrum">
         <div class="panelHeader">
           <h2>音響スペクトル</h2>
-          <div class="controls">
-            <div class="controlRow">
-              <label for="fftSel">FFTサイズ</label>
-              <select id="fftSel">
-                <option>1024</option><option>2048</option><option>4096</option>
-                <option selected>8192</option>
-                <option>16384</option><option>32768</option>
-              </select>
+          <div class="rightControls">
+            <!-- 1行目（短く揃える） -->
+            <select id="fftSizeSel" title="FFTサイズ">
+              <option>1024</option>
+              <option>2048</option>
+              <option>4096</option>
+              <option selected>8192</option>
+              <option>16384</option>
+              <option>32768</option>
+            </select>
 
-              <button id="btnSpecYAxis">縦軸：規格化</button>
-              <button id="btnSpecABClear">A/B解除</button>
-              <button id="btnSpecCSV" disabled>CSV</button>
-            </div>
+            <select id="specYMode" title="縦軸">
+              <option value="norm" selected>規格化</option>
+              <option value="db">dB</option>
+            </select>
 
-            <div class="controlRow">
-              <label>スペクトル周波数　最小:</label>
-              <select id="minPreset">
-                <option>0</option><option>20</option><option>100</option>
-                <option selected>200</option><option>300</option><option>400</option>
-                <option>500</option><option>1000</option><option value="custom">任意入力</option>
-              </select>
-              <input id="minHz" type="number" min="0" step="1" value="200" style="width:90px" />
-              <label>最大:</label>
-              <select id="maxPreset">
-                <option>1000</option><option selected>1500</option><option>2000</option>
-                <option>5000</option><option>10000</option><option>20000</option>
-                <option value="custom">任意入力</option>
-              </select>
-              <input id="maxHz" type="number" min="1" step="1" value="1500" style="width:90px" />
+            <button id="btnABClear" title="Esc">A/B解除</button>
+            <button id="btnCSV" disabled title="V（Pause中のみ）">CSV</button>
+
+            <!-- 2行目（必要なら） -->
+            <div class="row">
+              <label>最小:
+                <select id="fMinPreset">
+                  <option>0</option><option>20</option><option>100</option><option>200</option><option>300</option>
+                  <option>400</option><option>500</option><option>1000</option><option>任意</option>
+                </select>
+              </label>
+              <input id="fMinNum" type="number" min="0" step="1" value="200" style="width:86px">
+
+              <label>最大:
+                <select id="fMaxPreset">
+                  <option>1000</option><option selected>1500</option><option>2000</option><option>5000</option><option>10000</option><option>20000</option><option>任意</option>
+                </select>
+              </label>
+              <input id="fMaxNum" type="number" min="1" step="1" value="1500" style="width:90px">
             </div>
           </div>
         </div>
-
-        <div class="canvasWrap" id="wrapSpec" aria-label="スペクトルキャンバス">
-          <canvas id="cvSpec" width="1200" height="360"></canvas>
-          <canvas class="overlayRect" id="ovSpec" width="1200" height="360"></canvas>
-          <div class="infoBubble" id="bubbleSpec"></div>
+        <div class="panelBody">
+          <canvas id="cvSpec"></canvas>
+          <div class="infoOverlay" id="specInfo">Pause中：カーソルで値表示、2点選択でΔ表示。<br>PC：ドラッグで矩形ズーム／Shift+ドラッグで移動／ダブルクリックでリセット<br>スマホ：ピンチでズーム／2本指で移動</div>
         </div>
-
-        <div class="footer">
-          <div class="delta" id="deltaSpec">Δ: —</div>
-          <div class="small" id="descSpec">
-            状態：<span id="specStateText">停止中</span> / Pause中はスペクトルをスナップショット固定（クリック・ドラッグで値が変化しません）。規格化の縦軸は下限を少し下げています。
-          </div>
+        <div class="deltaBox">
+          <div class="big" id="specDelta">Δ：—</div>
+          <div class="muted" id="specCursor">カーソル：—</div>
         </div>
-      </section>
+      </div>
     </div>
 
-    <div class="status">
-      <div class="small" id="statusLine">
-        <b>注意：</b>このアプリは <b>HTTPS</b> または <b>localhost</b> 上でのみマイクが使えます（file:// 直開きだと動かないことがあります）。マイク許可を拒否した場合は取得できません。
-      </div>
-      <div class="small" id="helpLine" style="margin-top:6px">
-        <b>操作メモ：</b>
-        Startでマイク開始 / Pauseで表示停止（データ保持）/ Resetで完全初期化。
-        Pause中はドラッグでズーム、<span class="kbd">Z</span>で2点選択へ切替。<span class="kbd">Esc</span>でカーソル情報・A/B解除。
-        CSVはPause中のみ（<span class="kbd">V</span>）。
-      </div>
+    <div class="footer" id="footer">
+      <b>操作：</b>
+      Start=マイク取得＆描画開始 / Pause=表示停止（データ保持・解析可） / Reset=全初期化。<br>
+      <b>ショートカット：</b> S(Start) / P(Pause/Resume) / R(Reset) / Z(ズーム↔2点選択) / W(波形) / F(スペクトル) / B(同時) / V(CSV・Pause中のみ) / Esc(カーソル・A/B解除)。<br>
+      <span class="hint">注意：マイクは <b>HTTPS</b> または <b>localhost</b> でのみ動作します。</span>
+      <div id="err" class="warn" style="margin-top:6px; display:none;"></div>
     </div>
   </div>
-</div>
 
 <script>
 (() => {
-  // ---------- Utilities ----------
+  // =========================
+  // ユーティリティ
+  // =========================
+  const $ = (id) => document.getElementById(id);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const lerp = (a,b,t) => a + (b-a)*t;
-  const nice125 = (raw) => {
-    const p = Math.pow(10, Math.floor(Math.log10(raw)));
-    const n = raw / p;
-    let m = 1;
-    if (n <= 1) m = 1;
-    else if (n <= 2) m = 2;
-    else if (n <= 5) m = 5;
-    else m = 10;
-    return m * p;
-  };
-  const formatHz = (hz) => (hz >= 1000) ? (hz/1000).toFixed(hz%1000===0?0:1)+"k" : String(Math.round(hz));
-  const nowTs = () => new Date().toISOString().replace(/[:.]/g,'-');
+  const fmt = (v, d=2) => (Number.isFinite(v) ? v.toFixed(d) : "—");
+  const now = () => performance.now();
 
-  function isTextInputFocused(){
-    const el = document.activeElement;
-    if (!el) return false;
-    const tag = el.tagName?.toLowerCase();
-    return tag === 'input' || tag === 'select' || tag === 'textarea' || el.isContentEditable;
+  function niceStep(raw){
+    // 1-2-5 系列
+    const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+    const x = raw / pow;
+    const m = x <= 1 ? 1 : x <= 2 ? 2 : x <= 5 ? 5 : 10;
+    return m * pow;
   }
 
-  // ---------- DOM ----------
-  const app = document.getElementById('app');
-  const dual = document.getElementById('dual');
-  const panelWave = document.getElementById('panelWave');
-  const panelSpec = document.getElementById('panelSpec');
+  function downloadText(filename, text){
+    const blob = new Blob([text], {type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
-  const btnStart = document.getElementById('btnStart');
-  const btnPause = document.getElementById('btnPause');
-  const btnReset = document.getElementById('btnReset');
+  // =========================
+  // 状態
+  // =========================
+  const state = {
+    running:false,   // マイク取得中（Start後）
+    paused:false,    // 表示停止中（Pause）
+    mode:"zoom",     // "zoom" | "pick"
+    theme:"light",
+    view:"both",     // "both" | "wave" | "spec"
 
-  const tabBoth = document.getElementById('tabBoth');
-  const tabWave = document.getElementById('tabWave');
-  const tabSpec = document.getElementById('tabSpec');
+    sampleRate: 48000,
+    maxWinSec: 1.0,
+    waveWinSec: 1.0,
 
-  const btnMode = document.getElementById('btnMode');
-  const btnTheme = document.getElementById('btnTheme');
+    // 波形バッファ（最大1秒ぶん）
+    rb: null,
+    rbWrite: 0,
+    rbFilled: 0,
 
-  const pillState = document.getElementById('pillState');
+    // 波形表示範囲（ms）
+    waveX: { a:0, b:1000 },  // 表示窓（ms）…通常は [ -N..0 ] を 0..N として描画
+    waveYZoom: 1.0,
+    waveZoom: { enabled:false, x0:0, x1:1000, y0:-1, y1:1, panX:0, panY:0 }, // Pause中のみ適用
 
-  const waveWinRange = document.getElementById('waveWinRange');
-  const waveWinNum   = document.getElementById('waveWinNum');
-  const waveGainRange = document.getElementById('waveGainRange');
-  const waveGainNum   = document.getElementById('waveGainNum');
+    // スペクトル
+    fftSize: 8192,
+    specYMode: "norm", // norm | db
+    fMin: 200,
+    fMax: 1500,
+    specZoom: { enabled:false, f0:200, f1:1500, y0:0, y1:1, panF:0, panY:0 },
 
-  const fftSel = document.getElementById('fftSel');
-  const btnSpecYAxis = document.getElementById('btnSpecYAxis');
-  const minPreset = document.getElementById('minPreset');
-  const maxPreset = document.getElementById('maxPreset');
-  const minHzIn = document.getElementById('minHz');
-  const maxHzIn = document.getElementById('maxHz');
+    // スナップショット（Pause時）
+    snapWave: null,      // Float32Array（表示用に切り出し済み）
+    snapSpec: null,      // Float32Array（周波数ビン全体）
+    snapSpecPeak: null,  // ピーク値（表示レンジでの）
+    snapTime: 0,
 
-  const btnWaveABClear = document.getElementById('btnWaveABClear');
-  const btnSpecABClear = document.getElementById('btnSpecABClear');
-  const btnWaveCSV = document.getElementById('btnWaveCSV');
-  const btnSpecCSV = document.getElementById('btnSpecCSV');
+    // カーソル（Pause中）
+    cursorWave: null, // {xMs, amp, px, py}
+    cursorSpec: null, // {fHz, y, px, py}
 
-  const cvWave = document.getElementById('cvWave');
-  const ovWave = document.getElementById('ovWave');
-  const wrapWave = document.getElementById('wrapWave');
-  const bubbleWave = document.getElementById('bubbleWave');
+    // A/B（波形とスペクトルは独立）
+    ABwave: {A:null, B:null},
+    ABspec: {A:null, B:null},
+  };
 
-  const cvSpec = document.getElementById('cvSpec');
-  const ovSpec = document.getElementById('ovSpec');
-  const wrapSpec = document.getElementById('wrapSpec');
-  const bubbleSpec = document.getElementById('bubbleSpec');
-
-  const deltaWave = document.getElementById('deltaWave');
-  const deltaSpec = document.getElementById('deltaSpec');
-
-  const waveStateText = document.getElementById('waveStateText');
-  const specStateText = document.getElementById('specStateText');
-
-  // ---------- App State ----------
-  const State = { STOPPED:'stopped', RUNNING:'running', PAUSED:'paused' };
-  const Mode  = { ZOOM:'zoom', PICK:'pick' };
-
-  let appState = State.STOPPED;
-  let mode = Mode.ZOOM;
-
-  // Theme / view
-  let theme = 'light';
-  let view = 'both';
-
-  // Audio
+  // =========================
+  // Audio（Workletでリングバッファに蓄積）
+  // =========================
   let audioCtx = null;
-  let mediaStream = null;
-  let sourceNode = null;
+  let stream = null;
+  let srcNode = null;
   let analyser = null;
   let workletNode = null;
-  let sampleRate = 48000;
 
-  // Ring buffer (waveform)
-  const RB_SECONDS = 6;
-  let ring = null;
-  let ringLen = 0;
-  let ringWrite = 0;
-  let ringCount = 0;
-
-  // Snapshots for PAUSE
-  let snapWave = null;
-  let snapSpec = null;
-  let snapSpecMeta = null;
-
-  // FFT / spectrum
-  let fftSize = 8192;
-  let yMode = 'norm'; // norm | db
-  let freqBins = null;
-  let freqBinsByte = null;
-  let specPeaks = [];
-
-  // Wave window + "run-only display gain"
-  let waveWindowSec = 1.0;
-  let waveGain = 5.0; // 測定中のみ適用
-
-  // Zoom states
-  const waveZoom = { active:false, x0:0, x1:1, y0:-1, y1:1 };
-  const specZoom = { active:false, x0:200, x1:1500 };
-
-  // Cursor + A/B
-  const cursorWave = {active:false, tms:0, raw:0};
-  const cursorSpec = {active:false, hz:0, val:0};
-
-  const ABWave = {A:null, B:null}; // {tms, raw}
-  const ABSpec = {A:null, B:null}; // {hz, val}
-
-  // requestAnimationFrame
-  let rafId = 0;
-
-  // Drag
-  const drag = {
-    active:false,
-    kind:null,   // 'zoom' | 'pan'
-    target:null, // 'wave' | 'spec'
-    ptrId:null,
-    x0:0, y0:0, x1:0, y1:0,
-  };
-
-  // Touch gesture
-  const pointers = new Map();
-  let gesture = null;
-
-  // ---------- Canvas Setup ----------
-  function resizeCanvases(){
-    const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
-    for (const [wrap, cv, ov] of [[wrapWave, cvWave, ovWave],[wrapSpec, cvSpec, ovSpec]]){
-      const rect = wrap.getBoundingClientRect();
-      const w = Math.max(320, Math.floor(rect.width));
-      const h = Math.max(220, Math.floor(rect.height));
-      cv.width = Math.floor(w * dpr);
-      cv.height = Math.floor(h * dpr);
-      cv.style.width = w+'px';
-      cv.style.height = h+'px';
-      ov.width = cv.width;
-      ov.height = cv.height;
-      ov.style.width = cv.style.width;
-      ov.style.height = cv.style.height;
-    }
-  }
-  window.addEventListener('resize', () => { resizeCanvases(); drawOnce(); });
-
-  // ---------- View / Layout ----------
-  function setView(v){
-    view = v;
-    tabBoth.classList.toggle('active', v==='both');
-    tabWave.classList.toggle('active', v==='wave');
-    tabSpec.classList.toggle('active', v==='spec');
-
-    panelWave.style.display = (v==='spec') ? 'none' : '';
-    panelSpec.style.display = (v==='wave') ? 'none' : '';
-
-    panelWave.classList.toggle('big', v==='wave');
-    panelSpec.classList.toggle('big', v==='spec');
-
-    dual.classList.toggle('row', v==='both');
-
-    resizeCanvases();
-    drawOnce();
-  }
-  tabBoth.addEventListener('click', () => setView('both'));
-  tabWave.addEventListener('click', () => setView('wave'));
-  tabSpec.addEventListener('click', () => setView('spec'));
-
-  // ---------- Theme ----------
-  function setTheme(t){
-    theme = t;
-    app.setAttribute('data-theme', t);
-    btnTheme.textContent = (t==='light') ? 'ダークへ' : 'ライトへ';
-    drawOnce();
-  }
-  btnTheme.addEventListener('click', () => setTheme(theme==='light' ? 'dark' : 'light'));
-
-  // ---------- Mode toggle ----------
-  function setMode(m){
-    mode = m;
-    btnMode.textContent = (m===Mode.ZOOM) ? '2点選択へ' : 'ズームへ';
-    drag.active = false;
-    clearOverlay('wave'); clearOverlay('spec');
-  }
-  btnMode.addEventListener('click', () => setMode(mode===Mode.ZOOM ? Mode.PICK : Mode.ZOOM));
-
-  // ---------- Controls: waveform window ----------
-  function setWaveWindow(sec){
-    sec = clamp(sec, 0.05, 1.0);
-    waveWindowSec = sec;
-    waveWinRange.value = sec.toFixed(2);
-    waveWinNum.value = sec.toFixed(2);
-
-    if (!waveZoom.active){
-      waveZoom.x0 = 0; waveZoom.x1 = waveWindowSec;
-    } else {
-      waveZoom.x0 = clamp(waveZoom.x0, 0, waveWindowSec);
-      waveZoom.x1 = clamp(waveZoom.x1, 0, waveWindowSec);
-      if (Math.abs(waveZoom.x1 - waveZoom.x0) < 1e-6) resetWaveZoom();
-    }
-
-    if (appState === State.PAUSED){
-      snapWave = getWaveWindowFromRing();
-    }
-    drawOnce();
-  }
-  waveWinRange.addEventListener('input', () => setWaveWindow(parseFloat(waveWinRange.value)));
-  waveWinNum.addEventListener('change', () => setWaveWindow(parseFloat(waveWinNum.value)));
-
-  // ---------- Controls: waveform gain (RUNNING only used in draw) ----------
-  function setWaveGain(g){
-    g = clamp(g, 0.2, 20);
-    waveGain = g;
-    waveGainRange.value = g.toFixed(1);
-    waveGainNum.value = g.toFixed(1);
-    updateDeltas();
-    drawOnce();
-  }
-  waveGainRange.addEventListener('input', () => setWaveGain(parseFloat(waveGainRange.value)));
-  waveGainNum.addEventListener('change', () => setWaveGain(parseFloat(waveGainNum.value)));
-
-  // ---------- Spectrum controls ----------
-  function setFFTSize(n){
-    fftSize = n|0;
-    if (analyser) analyser.fftSize = fftSize;
-    if (analyser){
-      freqBins = new Float32Array(analyser.frequencyBinCount);
-      freqBinsByte = new Uint8Array(analyser.frequencyBinCount);
-    }
-    snapSpec = null;
-    snapSpecMeta = null;
-    if (appState === State.PAUSED) captureSpectrumSnapshot();
-    drawOnce();
-  }
-  fftSel.addEventListener('change', () => setFFTSize(parseInt(fftSel.value,10)));
-
-  function setSpecRange(minHz, maxHz){
-    minHz = Math.max(0, Math.floor(minHz));
-    maxHz = Math.max(minHz+1, Math.floor(maxHz));
-    const nyq = sampleRate/2;
-    maxHz = Math.min(maxHz, Math.floor(nyq));
-    specZoom.active = false;
-    specZoom.x0 = minHz;
-    specZoom.x1 = maxHz;
-    minHzIn.value = String(minHz);
-    maxHzIn.value = String(maxHz);
-    if (appState === State.PAUSED) captureSpectrumSnapshot();
-    drawOnce();
-  }
-  minPreset.addEventListener('change', () => {
-    if (minPreset.value !== 'custom') setSpecRange(parseFloat(minPreset.value), parseFloat(maxHzIn.value));
-    else minHzIn.focus();
-  });
-  maxPreset.addEventListener('change', () => {
-    if (maxPreset.value !== 'custom') setSpecRange(parseFloat(minHzIn.value), parseFloat(maxPreset.value));
-    else maxHzIn.focus();
-  });
-  minHzIn.addEventListener('change', () => setSpecRange(parseFloat(minHzIn.value), parseFloat(maxHzIn.value)));
-  maxHzIn.addEventListener('change', () => setSpecRange(parseFloat(minHzIn.value), parseFloat(maxHzIn.value)));
-
-  function setYAxisMode(next){
-    yMode = next;
-    btnSpecYAxis.textContent = (yMode==='norm') ? '縦軸：規格化' : '縦軸：dB';
-    if (appState === State.PAUSED) {
-      ABSpec.A = ABSpec.B = null;
-      cursorSpec.active = false;
-      captureSpectrumSnapshot();
-    }
-    updateDeltas();
-    drawOnce();
-  }
-  btnSpecYAxis.addEventListener('click', () => setYAxisMode(yMode==='norm' ? 'db' : 'norm'));
-
-  // ---------- Zoom resets ----------
-  function resetWaveZoom(){
-    waveZoom.active = false;
-    waveZoom.x0 = 0; waveZoom.x1 = waveWindowSec;
-    waveZoom.y0 = -1; waveZoom.y1 = 1;
-  }
-  function resetSpecZoom(){
-    specZoom.active = false;
-    specZoom.x0 = parseFloat(minHzIn.value);
-    specZoom.x1 = parseFloat(maxHzIn.value);
-  }
-  function clearAllCursorsAB(){
-    cursorWave.active = false;
-    cursorSpec.active = false;
-    ABWave.A = ABWave.B = null;
-    ABSpec.A = ABSpec.B = null;
-    bubbleWave.style.display = 'none';
-    bubbleSpec.style.display = 'none';
-    updateDeltas();
-  }
-
-  // ---------- State UI ----------
-  function setAppState(s){
-    appState = s;
-    const text = (s===State.STOPPED) ? '停止中' : (s===State.RUNNING ? '測定中' : 'Pause中');
-    pillState.textContent = text;
-    waveStateText.textContent = text;
-    specStateText.textContent = text;
-
-    btnPause.textContent = (s===State.PAUSED) ? 'Resume' : 'Pause';
-    btnStart.disabled = (s===State.RUNNING || s===State.PAUSED);
-    btnPause.disabled = (s===State.STOPPED);
-    btnWaveCSV.disabled = !(s===State.PAUSED);
-    btnSpecCSV.disabled = !(s===State.PAUSED);
-
-    if (s === State.RUNNING){
-      resetWaveZoom();
-      resetSpecZoom();
-      drag.active = false;
-      clearOverlay('wave'); clearOverlay('spec');
-    }
-    drawOnce();
-  }
-
-  // ---------- AudioWorklet (single-file) ----------
   async function initAudio(){
+    // AudioWorkletをBlobで注入
     const workletCode = `
-      class TapProcessor extends AudioWorkletProcessor {
+      class RingTap extends AudioWorkletProcessor {
+        constructor(){
+          super();
+          this._buf = [];
+          this._acc = 0;
+        }
         process(inputs){
           const input = inputs[0];
-          if (!input || input.length === 0) return true;
+          if (!input || !input[0]) return true;
           const ch0 = input[0];
-          if (!ch0) return true;
-          this.port.postMessage(ch0.slice(0));
+          // メインへ送る（多すぎると重いので、ここではそのままpost）
+          this.port.postMessage(ch0);
           return true;
         }
       }
-      registerProcessor('tap-processor', TapProcessor);
+      registerProcessor('ring-tap', RingTap);
     `;
-    const blob = new Blob([workletCode], {type:'application/javascript'});
-    const url = URL.createObjectURL(blob);
-
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    sampleRate = audioCtx.sampleRate;
+    state.sampleRate = audioCtx.sampleRate;
 
-    ringLen = Math.floor(sampleRate * RB_SECONDS);
-    ring = new Float32Array(ringLen);
-    ringWrite = 0;
-    ringCount = 0;
-
+    const blob = new Blob([workletCode], {type:"application/javascript"});
+    const url = URL.createObjectURL(blob);
     await audioCtx.audioWorklet.addModule(url);
-
-    mediaStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false }
-    });
-
-    sourceNode = audioCtx.createMediaStreamSource(mediaStream);
+    URL.revokeObjectURL(url);
 
     analyser = audioCtx.createAnalyser();
-    analyser.fftSize = fftSize;
-    analyser.smoothingTimeConstant = 0;
-    freqBins = new Float32Array(analyser.frequencyBinCount);
-    freqBinsByte = new Uint8Array(analyser.frequencyBinCount);
-
-    workletNode = new AudioWorkletNode(audioCtx, 'tap-processor');
-
-    const zero = audioCtx.createGain();
-    zero.gain.value = 0.0;
-
-    sourceNode.connect(analyser);
-    analyser.connect(workletNode);
-    workletNode.connect(zero);
-    zero.connect(audioCtx.destination);
-
-    workletNode.port.onmessage = (e) => {
-      const chunk = e.data;
-      if (!chunk || !chunk.length) return;
-      writeRing(chunk);
-    };
+    analyser.fftSize = state.fftSize;
+    analyser.smoothingTimeConstant = 0; // 教育用途：生の変化を見せる
   }
 
-  function writeRing(chunk){
-    for (let i=0;i<chunk.length;i++){
-      ring[ringWrite] = chunk[i];
-      ringWrite = (ringWrite + 1) % ringLen;
-      ringCount++;
+  async function start(){
+    clearErr();
+
+    if (!window.isSecureContext){
+      showErr("このページは安全なコンテキストではありません。マイクは HTTPS または localhost でのみ利用できます。");
+      return;
+    }
+    try{
+      if (!audioCtx) await initAudio();
+      // マイク取得
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false }});
+      srcNode = audioCtx.createMediaStreamSource(stream);
+
+      // Worklet：リングバッファへ
+      workletNode = new AudioWorkletNode(audioCtx, 'ring-tap');
+      workletNode.port.onmessage = (ev) => {
+        const chunk = ev.data; // Float32Array
+        // 1秒リングバッファに書き込み
+        writeRing(chunk);
+      };
+
+      // 解析系：analyser
+      srcNode.connect(analyser);
+      srcNode.connect(workletNode);
+
+      // 音を出さない（destinationへ繋がない）
+      state.running = true;
+      state.paused = false;
+      state.waveZoom.enabled = false; // Startしたら自動解除
+      state.specZoom.enabled = false;
+
+      updateUI();
+      requestFrame();
+    }catch(e){
+      showErr("マイクの利用が許可されませんでした。ブラウザの権限設定を確認してください。");
+      console.error(e);
+      await resetAll(true);
     }
   }
 
-  // ---------- Snapshot helpers ----------
-  function getWaveWindowFromRing(){
-    if (!ring) return null;
-    const need = Math.floor(sampleRate * waveWindowSec);
-    const out = new Float32Array(need);
-    let idx = ringWrite - need;
-    while (idx < 0) idx += ringLen;
-    for (let i=0;i<need;i++){
-      out[i] = ring[(idx + i) % ringLen];
+  function writeRing(chunk){
+    if (!state.rb){
+      // 最大1秒ぶん
+      const N = Math.max(1, Math.floor(state.maxWinSec * state.sampleRate));
+      state.rb = new Float32Array(N);
+      state.rbWrite = 0;
+      state.rbFilled = 0;
+    }
+    const rb = state.rb;
+    let w = state.rbWrite;
+    for (let i=0;i<chunk.length;i++){
+      rb[w] = chunk[i];
+      w = (w + 1) % rb.length;
+    }
+    state.rbWrite = w;
+    state.rbFilled = Math.min(rb.length, state.rbFilled + chunk.length);
+  }
+
+  function pauseResume(){
+    if (!state.running) return;
+    state.paused = !state.paused;
+
+    if (state.paused){
+      // スナップショット固定（必須）
+      takeSnapshot();
+    }else{
+      // Resume：ズーム維持（仕様）
+      // ただし、描画はリアルタイムへ戻る
+      state.cursorWave = null;
+      state.cursorSpec = null;
+    }
+    updateUI();
+    requestFrame();
+  }
+
+  function takeSnapshot(){
+    state.snapTime = now();
+    // 波形：表示窓分を切り出し（最新 N 秒）
+    state.snapWave = readWaveWindow(state.waveWinSec);
+
+    // スペクトル：analyserの周波数データを一度取得して固定
+    ensureAnalyserSize();
+    const nBins = analyser.frequencyBinCount;
+    const fArr = new Float32Array(nBins);
+    analyser.getFloatFrequencyData(fArr); // dBFS（負の値）
+    state.snapSpec = fArr;
+
+    // ピーク（表示範囲）…後で描画で出すが、ここで簡易に保持
+    state.snapSpecPeak = computeSpecPeak(fArr);
+  }
+
+  async function resetAll(silent=false){
+    state.running = false;
+    state.paused = false;
+
+    state.rb = null; state.rbWrite = 0; state.rbFilled = 0;
+    state.snapWave = null;
+    state.snapSpec = null;
+    state.snapSpecPeak = null;
+    state.cursorWave = null;
+    state.cursorSpec = null;
+    state.ABwave = {A:null, B:null};
+    state.ABspec = {A:null, B:null};
+    state.waveZoom = { enabled:false, x0:0, x1:1000, y0:-1, y1:1, panX:0, panY:0 };
+    state.specZoom = { enabled:false, f0:state.fMin, f1:state.fMax, y0:0, y1:1, panF:0, panY:0 };
+
+    stopRAF();
+
+    // 音停止
+    try{
+      if (stream){
+        stream.getTracks().forEach(t => t.stop());
+      }
+    }catch{}
+    stream = null;
+    srcNode = null;
+    analyser = null;
+    workletNode = null;
+
+    try{
+      if (audioCtx){
+        await audioCtx.close();
+      }
+    }catch{}
+    audioCtx = null;
+
+    if (!silent) updateUI();
+    drawAll(); // 初期表示
+  }
+
+  // =========================
+  // UI
+  // =========================
+  const btnStart = $("btnStart");
+  const btnPause = $("btnPause");
+  const btnReset = $("btnReset");
+  const btnMode = $("btnMode");
+  const btnTheme = $("btnTheme");
+  const btnZoomReset = $("btnZoomReset");
+
+  const btnViewBoth = $("btnViewBoth");
+  const btnViewWave = $("btnViewWave");
+  const btnViewSpec = $("btnViewSpec");
+
+  const waveWin = $("waveWin");
+  const waveWinNum = $("waveWinNum");
+  const waveYZoom = $("waveYZoom");
+
+  const fftSizeSel = $("fftSizeSel");
+  const specYMode = $("specYMode");
+  const fMinPreset = $("fMinPreset");
+  const fMaxPreset = $("fMaxPreset");
+  const fMinNum = $("fMinNum");
+  const fMaxNum = $("fMaxNum");
+  const btnABClear = $("btnABClear");
+  const btnCSV = $("btnCSV");
+
+  const stRun = $("stRun");
+  const stMode = $("stMode");
+  const stSR = $("stSR");
+  const stWin = $("stWin");
+
+  const waveDelta = $("waveDelta");
+  const specDelta = $("specDelta");
+  const waveCursor = $("waveCursor");
+  const specCursor = $("specCursor");
+
+  btnStart.onclick = start;
+  btnPause.onclick = pauseResume;
+  btnReset.onclick = () => resetAll(false);
+
+  btnMode.onclick = () => toggleMode();
+  btnTheme.onclick = () => toggleTheme();
+
+  btnViewBoth.onclick = () => setView("both");
+  btnViewWave.onclick = () => setView("wave");
+  btnViewSpec.onclick = () => setView("spec");
+
+  btnZoomReset.onclick = () => {
+    resetZoom(true);
+  };
+
+  waveWin.oninput = () => setWaveWin(parseFloat(waveWin.value));
+  waveWinNum.onchange = () => setWaveWin(parseFloat(waveWinNum.value));
+  waveYZoom.oninput = () => {
+    state.waveYZoom = parseFloat(waveYZoom.value);
+    drawAll();
+  };
+
+  fftSizeSel.onchange = () => {
+    state.fftSize = parseInt(fftSizeSel.value, 10);
+    // 変更時は解析・表示・ピーク・A/B・Δ・CSV が連動（仕様）
+    if (state.running && audioCtx){
+      ensureAnalyserSize(true);
+      if (state.paused) takeSnapshot();
+      drawAll();
+    }
+  };
+
+  specYMode.onchange = () => {
+    state.specYMode = specYMode.value;
+    // 連動：表示・ピーク・A/B・Δ・CSV
+    drawAll();
+  };
+
+  fMinPreset.onchange = () => {
+    const v = fMinPreset.value;
+    if (v !== "任意"){
+      fMinNum.value = v;
+      setFMin(parseFloat(v));
+    }
+  };
+  fMaxPreset.onchange = () => {
+    const v = fMaxPreset.value;
+    if (v !== "任意"){
+      const num = v.replace("k","000");
+      fMaxNum.value = num;
+      setFMax(parseFloat(num));
+    }
+  };
+  fMinNum.onchange = () => setFMin(parseFloat(fMinNum.value));
+  fMaxNum.onchange = () => setFMax(parseFloat(fMaxNum.value));
+
+  btnABClear.onclick = () => {
+    state.ABwave = {A:null, B:null};
+    state.ABspec = {A:null, B:null};
+    state.cursorWave = null;
+    state.cursorSpec = null;
+    drawAll();
+  };
+
+  btnCSV.onclick = () => exportCSV();
+
+  function setView(v){
+    state.view = v;
+    document.body.classList.toggle("view-both", v==="both");
+    document.body.classList.toggle("view-wave", v==="wave");
+    document.body.classList.toggle("view-spec", v==="spec");
+    btnViewBoth.classList.toggle("primary", v==="both");
+    btnViewWave.classList.toggle("primary", v==="wave");
+    btnViewSpec.classList.toggle("primary", v==="spec");
+    resizeCanvases();
+    drawAll();
+  }
+
+  function toggleMode(){
+    state.mode = (state.mode === "zoom") ? "pick" : "zoom";
+    updateUI();
+    drawAll();
+  }
+
+  function toggleTheme(){
+    state.theme = (state.theme === "light") ? "dark" : "light";
+    document.body.classList.toggle("dark", state.theme==="dark");
+    btnTheme.textContent = (state.theme==="dark") ? "ライトへ" : "ダークへ";
+    drawAll();
+  }
+
+  function setWaveWin(sec){
+    sec = clamp(sec, 0.05, 1.0);
+    state.waveWinSec = sec;
+    waveWin.value = String(sec);
+    waveWinNum.value = String(sec.toFixed(2));
+    stWin.textContent = sec.toFixed(2);
+    // Pause中ならスナップショット更新
+    if (state.running && state.paused){
+      takeSnapshot();
+    }
+    drawAll();
+  }
+
+  function setFMin(v){
+    v = Math.max(0, v|0);
+    state.fMin = v;
+    if (state.fMax <= state.fMin + 1) state.fMax = state.fMin + 1;
+    fMinNum.value = String(state.fMin);
+    fMaxNum.value = String(state.fMax);
+    // ズームのベースも更新
+    if (!state.specZoom.enabled){
+      state.specZoom.f0 = state.fMin;
+      state.specZoom.f1 = state.fMax;
+    }
+    if (state.running && state.paused) takeSnapshot();
+    drawAll();
+  }
+
+  function setFMax(v){
+    v = Math.max(1, v|0);
+    state.fMax = v;
+    if (state.fMax <= state.fMin + 1) state.fMax = state.fMin + 1;
+    fMinNum.value = String(state.fMin);
+    fMaxNum.value = String(state.fMax);
+    if (!state.specZoom.enabled){
+      state.specZoom.f0 = state.fMin;
+      state.specZoom.f1 = state.fMax;
+    }
+    if (state.running && state.paused) takeSnapshot();
+    drawAll();
+  }
+
+  function resetZoom(forceDraw=false){
+    state.waveZoom.enabled = false;
+    state.specZoom.enabled = false;
+    state.waveZoom.panX = 0; state.waveZoom.panY = 0;
+    state.specZoom.panF = 0; state.specZoom.panY = 0;
+    state.cursorWave = null;
+    state.cursorSpec = null;
+    if (forceDraw) drawAll();
+  }
+
+  function updateUI(){
+    btnStart.disabled = state.running;
+    btnPause.disabled = !state.running;
+    btnReset.disabled = !state.running && !audioCtx; // resetは基本Start後
+    btnPause.textContent = state.paused ? "Resume" : "Pause";
+
+    // ズーム/2点選択 切替ボタン：切替先を表示（仕様）
+    btnMode.textContent = (state.mode === "zoom") ? "2点選択へ" : "ズームへ";
+    stMode.textContent = (state.mode === "zoom") ? "ズーム" : "2点選択";
+
+    stRun.textContent = state.running ? (state.paused ? "Pause中" : "測定中") : "停止";
+    stSR.textContent = state.running && audioCtx ? String(state.sampleRate) : "—";
+
+    // CSVはPause中のみ
+    btnCSV.disabled = !(state.running && state.paused);
+
+    // ズーム操作はPause中のみ（仕様）
+    // ただしズームリセットは測定中でも有効 → 常時有効
+  }
+
+  // =========================
+  // Canvas/描画
+  // =========================
+  const cvWave = $("cvWave");
+  const cvSpec = $("cvSpec");
+  const ctxW = cvWave.getContext("2d");
+  const ctxS = cvSpec.getContext("2d");
+
+  let rafId = 0;
+  function requestFrame(){
+    if (rafId) return;
+    rafId = requestAnimationFrame(frame);
+  }
+  function stopRAF(){
+    if (rafId){ cancelAnimationFrame(rafId); rafId = 0; }
+  }
+
+  function resizeCanvases(){
+    [cvWave, cvSpec].forEach(cv => {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rect = cv.getBoundingClientRect();
+      const w = Math.max(2, Math.floor(rect.width * dpr));
+      const h = Math.max(2, Math.floor(rect.height * dpr));
+      if (cv.width !== w || cv.height !== h){
+        cv.width = w;
+        cv.height = h;
+      }
+    });
+  }
+  window.addEventListener("resize", () => {
+    resizeCanvases();
+    drawAll();
+  });
+
+  function ensureAnalyserSize(force=false){
+    if (!analyser) return;
+    if (force || analyser.fftSize !== state.fftSize){
+      analyser.fftSize = state.fftSize;
+    }
+  }
+
+  function frame(){
+    rafId = 0;
+    if (state.running && !state.paused){
+      drawAll();  // リアルタイム描画
+      requestFrame();
+    }else{
+      // Pause中は止める（仕様）…ただし操作で drawAll() は呼ばれる
+      drawAll();
+    }
+  }
+
+  function drawAll(){
+    resizeCanvases();
+    drawWave();
+    drawSpec();
+    updateTextPanels();
+  }
+
+  function updateTextPanels(){
+    // Δ表示
+    waveDelta.textContent = "Δ：" + formatWaveDelta();
+    specDelta.textContent = "Δ：" + formatSpecDelta();
+
+    // カーソル
+    waveCursor.textContent = "カーソル： " + (state.cursorWave ? `t=${fmt(state.cursorWave.xMs,2)} ms, amp=${fmt(state.cursorWave.amp,4)}` : "—");
+    specCursor.textContent = "カーソル： " + (state.cursorSpec ? `f=${fmt(state.cursorSpec.fHz,1)} Hz, y=${formatSpecY(state.cursorSpec.y)}` : "—");
+  }
+
+  function formatWaveDelta(){
+    const A = state.ABwave.A, B = state.ABwave.B;
+    if (!A || !B) return "—";
+    const dt = B.xMs - A.xMs;
+    const da = B.amp - A.amp;
+    return `Δt=${fmt(dt,2)} ms, Δamp=${fmt(da,4)}`;
+  }
+
+  function formatSpecDelta(){
+    const A = state.ABspec.A, B = state.ABspec.B;
+    if (!A || !B) return "—";
+    const df = B.fHz - A.fHz;
+    const dy = B.y - A.y;
+    return `Δf=${fmt(df,1)} Hz, Δy=${(state.specYMode==="db") ? fmt(dy,2)+" dB" : fmt(dy*100,2)+" %"}`;
+  }
+
+  function formatSpecY(y){
+    if (!Number.isFinite(y)) return "—";
+    if (state.specYMode === "db"){
+      return `${fmt(y,2)} dB`;
+    }else{
+      return `${fmt(y*100,1)} %`;
+    }
+  }
+
+  function getColors(){
+    const styles = getComputedStyle(document.body);
+    return {
+      bg: styles.getPropertyValue("--bg").trim(),
+      fg: styles.getPropertyValue("--fg").trim(),
+      muted: styles.getPropertyValue("--muted").trim(),
+      border: styles.getPropertyValue("--border").trim(),
+      panel: styles.getPropertyValue("--panel").trim(),
+      accent: styles.getPropertyValue("--accent").trim(),
+    };
+  }
+
+  function clearCanvas(ctx, w, h){
+    const {bg} = getColors();
+    ctx.clearRect(0,0,w,h);
+    // 背景は透過でもOKだが、投影で安定させる
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,w,h);
+  }
+
+  function plotArea(w,h){
+    // 余白（軸ラベル用）
+    const padL = 54, padR = 14, padT = 18, padB = 34;
+    return {x:padL, y:padT, w:Math.max(10, w - padL - padR), h:Math.max(10, h - padT - padB), padL,padR,padT,padB};
+  }
+
+  function drawAxes(ctx, area, xLabelTop=false){
+    const {fg, muted, border} = getColors();
+    ctx.save();
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 1;
+    // 枠
+    ctx.strokeRect(area.x + 0.5, area.y + 0.5, area.w - 1, area.h - 1);
+
+    ctx.fillStyle = muted;
+    ctx.font = `${Math.max(12, Math.floor(area.h * 0.06))}px system-ui, -apple-system, sans-serif`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    if (xLabelTop){
+      ctx.fillText("Hz", area.x + 6, 4);
+    }else{
+      ctx.fillText("ms", area.x + 6, area.y + area.h + 6);
+    }
+    ctx.restore();
+  }
+
+  // ---------- 波形データ取得 ----------
+  function readWaveWindow(winSec){
+    if (!state.rb || state.rbFilled < 10) return null;
+    const n = Math.min(state.rb.length, Math.floor(winSec * state.sampleRate));
+    const out = new Float32Array(n);
+    // 最新 n サンプルを読み出し
+    const rb = state.rb;
+    let idx = (state.rbWrite - n + rb.length) % rb.length;
+    for (let i=0;i<n;i++){
+      out[i] = rb[idx];
+      idx = (idx + 1) % rb.length;
     }
     return out;
   }
 
-  function captureSpectrumSnapshot(){
-    if (!analyser) return;
-    if (yMode === 'db'){
-      analyser.getFloatFrequencyData(freqBins);
-      snapSpec = new Float32Array(freqBins);
-    } else {
-      analyser.getByteFrequencyData(freqBinsByte);
-      snapSpec = new Float32Array(freqBinsByte.length);
-      for (let i=0;i<freqBinsByte.length;i++){
-        snapSpec[i] = (freqBinsByte[i] / 255) * 100;
+  // ---------- 波形描画 ----------
+  function drawWave(){
+    const w = cvWave.width, h = cvWave.height;
+    const ctx = ctxW;
+    clearCanvas(ctx, w, h);
+    const {fg, muted, accent} = getColors();
+
+    const area = plotArea(w,h);
+    drawAxes(ctx, area, false);
+
+    // 描画対象
+    let data = null;
+    if (state.running){
+      if (state.paused){
+        data = state.snapWave || readWaveWindow(state.waveWinSec);
+      }else{
+        // リアルタイム：都度読み出し
+        data = readWaveWindow(state.waveWinSec);
       }
     }
-    snapSpecMeta = { fftSize, minHz: parseFloat(minHzIn.value), maxHz: parseFloat(maxHzIn.value), yMode };
-  }
 
-  // ---------- Start / Pause / Reset ----------
-  async function start(){
-    try{
-      await initAudio();
-      setAppState(State.RUNNING);
-      scheduleDraw();
-    }catch(err){
-      console.error(err);
-      const msg = [
-        'マイクを取得できませんでした。',
-        '・ブラウザでマイク許可が必要です（拒否した場合は取得できません）。',
-        '・このアプリは HTTPS または localhost でのみマイクが使えます（file:// 直開きは不可の場合あり）。',
-        'エラー: ' + (err?.message || String(err))
-      ].join('\n');
-      document.getElementById('statusLine').textContent = msg;
-      setAppState(State.STOPPED);
-      await hardResetAudio();
+    // 軸スケール
+    const winMs = state.waveWinSec * 1000;
+    let x0 = 0, x1 = winMs;
+    // 波形ズーム（Pause中のみ有効）
+    let yScale = state.waveYZoom;
+    let yMin=-1, yMax=1;
+
+    if (state.paused && state.waveZoom.enabled){
+      x0 = state.waveZoom.x0;
+      x1 = state.waveZoom.x1;
+      // yは固定±1をベースにズーム倍率で表現
+      // ※矩形ズームで縦方向も入れる場合はここを拡張できる
     }
-  }
-
-  function pauseToggle(){
-    if (appState === State.RUNNING){
-      snapWave = getWaveWindowFromRing();
-      captureSpectrumSnapshot();
-      setAppState(State.PAUSED);
-      cancelAnimationFrame(rafId); rafId = 0;
-      drawOnce();
-    } else if (appState === State.PAUSED){
-      setAppState(State.RUNNING);
-      scheduleDraw();
+    // Shift移動などのパンはズーム時のみ
+    if (state.paused && state.waveZoom.enabled){
+      const dx = state.waveZoom.panX || 0;
+      x0 += dx; x1 += dx;
+      x0 = clamp(x0, 0, winMs-1);
+      x1 = clamp(x1, x0+1, winMs);
     }
-  }
 
-  async function hardResetAudio(){
-    cancelAnimationFrame(rafId); rafId = 0;
+    // yズーム（波形のみ）
+    yScale = clamp(yScale, 0.2, 5.0);
 
-    if (mediaStream){
-      for (const tr of mediaStream.getTracks()) tr.stop();
+    // 目盛（x）
+    drawXTicksWave(ctx, area, x0, x1);
+
+    // データがなければ案内
+    if (!data){
+      ctx.save();
+      ctx.fillStyle = muted;
+      ctx.font = "14px system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Startでマイク取得を開始します。", area.x + area.w/2, area.y + area.h/2);
+      ctx.restore();
+      return;
     }
-    mediaStream = null;
 
-    try{ sourceNode?.disconnect(); }catch{}
-    try{ analyser?.disconnect(); }catch{}
-    try{ workletNode?.disconnect(); }catch{}
-    sourceNode = null; analyser = null; workletNode = null;
+    // 波形描画：密な領域はmin/max（見た目分解能重視）
+    const n = data.length;
+    // 表示範囲（ms）→サンプル範囲へ
+    const tPerSampleMs = 1000 / state.sampleRate;
+    const i0 = Math.floor(x0 / tPerSampleMs);
+    const i1 = Math.min(n-1, Math.ceil(x1 / tPerSampleMs));
+    const span = Math.max(1, i1 - i0);
 
-    if (audioCtx){
-      try{ await audioCtx.close(); }catch{}
-    }
-    audioCtx = null;
-
-    ring = null; ringLen = 0; ringWrite = 0; ringCount = 0;
-    snapWave = null; snapSpec = null; snapSpecMeta = null;
-
-    resetWaveZoom();
-    resetSpecZoom();
-    drag.active = false;
-    clearAllCursorsAB();
-    updateDeltas();
-
-    drawOnce();
-  }
-
-  async function resetAll(){
-    await hardResetAudio();
-    setAppState(State.STOPPED);
-    document.getElementById('statusLine').innerHTML =
-      '<b>注意：</b>このアプリは <b>HTTPS</b> または <b>localhost</b> 上でのみマイクが使えます（file:// 直開きだと動かないことがあります）。マイク許可を拒否した場合は取得できません。';
-  }
-
-  btnStart.addEventListener('click', start);
-  btnPause.addEventListener('click', pauseToggle);
-  btnReset.addEventListener('click', resetAll);
-
-  // ---------- Keyboard shortcuts ----------
-  window.addEventListener('keydown', (e) => {
-    if (isTextInputFocused()) return;
-
-    const k = e.key.toLowerCase();
-    if (k === 's'){ e.preventDefault(); if (appState === State.STOPPED) start(); }
-    else if (k === 'p'){ e.preventDefault(); if (appState !== State.STOPPED) pauseToggle(); }
-    else if (k === 'r'){ e.preventDefault(); resetAll(); }
-    else if (k === 'z'){ e.preventDefault(); setMode(mode===Mode.ZOOM ? Mode.PICK : Mode.ZOOM); }
-    else if (k === 'w'){ e.preventDefault(); setView('wave'); }
-    else if (k === 'f'){ e.preventDefault(); setView('spec'); }
-    else if (k === 'b'){ e.preventDefault(); setView('both'); }
-    else if (k === 'v'){ e.preventDefault(); if (appState===State.PAUSED) { downloadCSVWave(); downloadCSVSpec(); } }
-    else if (k === 'escape'){ e.preventDefault(); escClear(); }
-  });
-
-  // ---------- CSV ----------
-  function downloadCSVWave(){
-    if (appState !== State.PAUSED) return;
-    if (!snapWave) return;
-
-    const dtms = 1000 / sampleRate;
-
-    const x0ms = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-    const x1ms = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-
-    const lines = [];
-    lines.push(`# kind: waveform`);
-    lines.push(`# sampleRate: ${sampleRate}`);
-    lines.push(`# windowSec: ${waveWindowSec}`);
-    lines.push(`# waveGain(runOnly): ${waveGain}`);
-    lines.push(`# note: gain is applied only while RUNNING; CSV exports paused view (gain=1)`);
-    lines.push(`# zoomX_ms: ${x0ms.toFixed(3)}..${x1ms.toFixed(3)}`);
-    lines.push(`# zoomY_raw: ${waveZoom.active ? `${Math.min(waveZoom.y0,waveZoom.y1).toFixed(6)}..${Math.max(waveZoom.y0,waveZoom.y1).toFixed(6)}` : `-1..1`}`);
-    lines.push(`t_ms,amp`);
-
-    const startIndex = Math.max(0, Math.floor(x0ms / dtms));
-    const endIndex = Math.min(snapWave.length-1, Math.ceil(x1ms / dtms));
-
-    for (let i=startIndex;i<=endIndex;i++){
-      const t = i*dtms;
-      const amp = snapWave[i]; // Pause表示(=gainなし)に合わせる
-      lines.push(`${t.toFixed(6)},${amp.toFixed(8)}`);
-    }
-    saveText(lines.join('\n'), `waveform_${nowTs()}.csv`);
-  }
-
-  function downloadCSVSpec(){
-    if (appState !== State.PAUSED) return;
-    const spec = getSpectrumDisplayData();
-    if (!spec) return;
-
-    const lines = [];
-    const minHz = parseFloat(minHzIn.value);
-    const maxHz = parseFloat(maxHzIn.value);
-    lines.push(`# kind: spectrum`);
-    lines.push(`# sampleRate: ${sampleRate}`);
-    lines.push(`# fftSize: ${fftSize}`);
-    lines.push(`# freqRangeHz: ${minHz}..${maxHz}`);
-    lines.push(`# yMode: ${yMode}`);
-    lines.push(`# zoomX_Hz: ${spec.x0.toFixed(3)}..${spec.x1.toFixed(3)}`);
-    lines.push(`f_hz,y`);
-
-    const {binHz, yArr, i0, i1} = spec;
-    for (let i=i0;i<=i1;i++){
-      const f = i*binHz;
-      const y = yArr[i];
-      lines.push(`${f.toFixed(6)},${y.toFixed(6)}`);
-    }
-    saveText(lines.join('\n'), `spectrum_${nowTs()}.csv`);
-  }
-
-  function saveText(text, filename){
-    const blob = new Blob([text], {type:'text/csv;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  btnWaveCSV.addEventListener('click', downloadCSVWave);
-  btnSpecCSV.addEventListener('click', downloadCSVSpec);
-
-  // ---------- A/B clear ----------
-  function clearAB(which){
-    if (which === 'wave'){
-      ABWave.A = ABWave.B = null;
-      cursorWave.active = false;
-      bubbleWave.style.display = 'none';
-    } else {
-      ABSpec.A = ABSpec.B = null;
-      cursorSpec.active = false;
-      bubbleSpec.style.display = 'none';
-    }
-    updateDeltas();
-    drawOnce();
-  }
-  btnWaveABClear.addEventListener('click', () => clearAB('wave'));
-  btnSpecABClear.addEventListener('click', () => clearAB('spec'));
-
-  function escClear(){
-    clearAllCursorsAB();
-    drawOnce();
-  }
-
-  // ---------- Drawing ----------
-  function scheduleDraw(){
-    if (rafId) return;
-    const tick = () => {
-      rafId = requestAnimationFrame(tick);
-      if (appState !== State.RUNNING) return;
-      drawAll();
-    };
-    rafId = requestAnimationFrame(tick);
-  }
-  function drawOnce(){ drawAll(true); }
-
-  function themeColors(){
-    const cs = getComputedStyle(app);
-    return {
-      bg: cs.getPropertyValue('--bg').trim(),
-      fg: cs.getPropertyValue('--fg').trim(),
-      muted: cs.getPropertyValue('--muted').trim(),
-      grid: cs.getPropertyValue('--grid').trim(),
-      accent: cs.getPropertyValue('--accent').trim(),
-      accent2: cs.getPropertyValue('--accent2').trim(),
-      overlay: cs.getPropertyValue('--overlay').trim(),
-      overlayBorder: cs.getPropertyValue('--overlayBorder').trim(),
-      border: cs.getPropertyValue('--border').trim(),
-    };
-  }
-
-  function clearCanvas(ctx, w, h, bg){
     ctx.save();
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.clearRect(0,0,w,h);
-    ctx.fillStyle = bg;
-    ctx.fillRect(0,0,w,h);
-    ctx.restore();
-  }
+    ctx.strokeStyle = fg;
+    ctx.lineWidth = state.paused ? 2 : 1.5;
+    ctx.globalAlpha = 0.95;
 
-  function drawAll(){
-    const c = themeColors();
-    drawWave(c);
-    drawSpec(c);
-  }
+    const pxPerPoint = area.w / span;
+    const midY = area.y + area.h/2;
+    const ampToY = (a) => midY - (a * (area.h/2) * yScale);
 
-  // ----- Ticks -----
-  function computeTicks(min, max, targetCount=5){
-    const span = max - min;
-    if (span <= 0) return [];
-    const raw = span / (targetCount-1);
-    const step = nice125(raw);
-    const start = Math.ceil(min / step) * step;
-    const ticks = [];
-    for (let v=start; v<=max+1e-9; v+=step) ticks.push(v);
-    if (ticks.length === 0 || Math.abs(ticks[0]-min) > step*0.25) ticks.unshift(min);
-    if (Math.abs(ticks[ticks.length-1]-max) > step*0.25) ticks.push(max);
-    const uniq = [];
-    for (const t of ticks){
-      if (uniq.length===0 || Math.abs(uniq[uniq.length-1]-t) > step*0.1) uniq.push(t);
-    }
-    return uniq;
-  }
-  function spanDigits(span){
-    if (span <= 1) return 3;
-    if (span <= 10) return 2;
-    if (span <= 100) return 1;
-    return 0;
-  }
-
-  function drawCursorPoint(ctx, c, x, y){
-    ctx.save();
-    ctx.fillStyle = c.accent;
-    ctx.strokeStyle = c.bg;
-    ctx.lineWidth = 2.5 * Math.max(1, (window.devicePixelRatio||1)*0.7);
     ctx.beginPath();
-    ctx.arc(x, y, 5 * Math.max(1, (window.devicePixelRatio||1)*0.6), 0, Math.PI*2);
-    ctx.fill();
+    if (pxPerPoint >= 1.2){
+      // 点が疎：連続線
+      for (let i=i0;i<=i1;i++){
+        const tMs = i * tPerSampleMs;
+        const x = area.x + (tMs - x0) / (x1 - x0) * area.w;
+        const y = ampToY(data[i]);
+        if (i === i0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+    }else{
+      // 密：各ピクセルでmin/max
+      const pxN = area.w|0;
+      for (let px=0; px<=pxN; px++){
+        const tA = x0 + (px/pxN)*(x1-x0);
+        const tB = x0 + ((px+1)/pxN)*(x1-x0);
+        const ia = clamp(Math.floor(tA / tPerSampleMs), i0, i1);
+        const ib = clamp(Math.floor(tB / tPerSampleMs), i0, i1);
+        let mn=1e9, mx=-1e9;
+        for (let i=ia;i<=ib;i++){
+          const v = data[i];
+          if (v<mn) mn=v;
+          if (v>mx) mx=v;
+        }
+        const x = area.x + (tA - x0)/(x1-x0)*area.w;
+        ctx.moveTo(x, ampToY(mn));
+        ctx.lineTo(x, ampToY(mx));
+      }
+    }
     ctx.stroke();
     ctx.restore();
-  }
 
-  // ----- Wave helpers -----
-  function pickWaveAtCanvas(px, py){
-    if (!snapWave) return null;
-    const w = cvWave.width, h = cvWave.height;
-    const padL = 64, padR = 18, padT = 42, padB = 36;
-    const pw = w - padL - padR;
-    const ph = h - padT - padB;
-    if (px < padL || px > padL+pw || py < padT || py > padT+ph) return null;
-
-    const xMin = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-    const xMax = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-    const tms = xMin + ((px - padL)/pw) * (xMax - xMin);
-
-    const dtms = 1000 / sampleRate;
-    const idx = clamp(Math.round(tms / dtms), 0, snapWave.length-1);
-    const raw = snapWave[idx];
-    return {tms, raw};
-  }
-
-  // ----- Spectrum data -----
-  function getSpectrumDisplayData(){
-    const nyq = sampleRate/2;
-    const minHz = clamp(parseFloat(minHzIn.value), 0, nyq);
-    const maxHz = clamp(parseFloat(maxHzIn.value), minHz+1, nyq);
-
-    const binCount = analyser ? analyser.frequencyBinCount : (snapSpec ? snapSpec.length : 0);
-    if (!binCount) return null;
-
-    const binHz = sampleRate / fftSize;
-    let yArr = null;
-
-    if (appState === State.RUNNING && analyser){
-      if (yMode === 'db'){
-        analyser.getFloatFrequencyData(freqBins);
-        yArr = freqBins;
-      } else {
-        analyser.getByteFrequencyData(freqBinsByte);
-        if (!getSpectrumDisplayData._tmp || getSpectrumDisplayData._tmp.length !== freqBinsByte.length){
-          getSpectrumDisplayData._tmp = new Float32Array(freqBinsByte.length);
-        }
-        const tmp = getSpectrumDisplayData._tmp;
-        for (let i=0;i<freqBinsByte.length;i++) tmp[i] = (freqBinsByte[i]/255)*100;
-        yArr = tmp;
-      }
-    } else if (appState === State.PAUSED && snapSpec){
-      yArr = snapSpec;
-    } else {
-      return null;
+    // A/Bライン＆青点（Pause中）
+    if (state.paused){
+      drawABWave(ctx, area, x0, x1, yScale);
+      drawCursorWave(ctx, area, x0, x1, yScale);
     }
 
-    const x0 = specZoom.active ? specZoom.x0 : minHz;
-    const x1 = specZoom.active ? specZoom.x1 : maxHz;
-
-    let i0 = Math.floor(x0 / binHz);
-    let i1 = Math.ceil(x1 / binHz);
-    i0 = clamp(i0, 0, yArr.length-1);
-    i1 = clamp(i1, 0, yArr.length-1);
-    if (i1 < i0) [i0,i1] = [i1,i0];
-
-    return {binHz, yArr, i0, i1, minHz, maxHz, x0, x1};
+    // 矩形ズームオーバーレイ（ドラッグ中）
+    drawDragOverlay(ctx, dragWave, area);
   }
 
-  function pickSpecAtCanvas(px, py){
-    const data = getSpectrumDisplayData();
-    if (!data) return null;
-    const {binHz, yArr, x0, x1, i0, i1} = data;
+  function drawXTicksWave(ctx, area, x0, x1){
+    const {muted, border} = getColors();
+    const span = x1 - x0;
+    const approxTicks = 5;
+    const raw = span / (approxTicks-1);
+    const step = niceStep(raw);
 
+    // ラベルが重なる場合は間引く
+    ctx.save();
+    ctx.strokeStyle = border;
+    ctx.fillStyle = muted;
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+
+    // 端を含めつつ、近いものはスキップ
+    const labels = [];
+    const start = Math.floor(x0/step)*step;
+    for (let v=start; v<=x1+1e-6; v+=step){
+      if (v < x0-1e-6) continue;
+      if (v > x1+1e-6) continue;
+      const x = area.x + (v - x0)/(x1-x0) * area.w;
+      labels.push({v,x});
+    }
+
+    const minGap = 42 * (window.devicePixelRatio||1) / Math.max(1, window.devicePixelRatio||1); // 見た目
+    let lastX = -1e9;
+    for (const it of labels){
+      if (it.x - lastX < minGap) continue;
+      lastX = it.x;
+      ctx.beginPath();
+      ctx.moveTo(it.x+0.5, area.y + area.h);
+      ctx.lineTo(it.x+0.5, area.y + area.h + 6);
+      ctx.stroke();
+      ctx.fillText(`${Math.round(it.v)}`, it.x, area.y + area.h + 8);
+    }
+    // 端（0とmax）を確実に出す
+    const xL = area.x, xR = area.x + area.w;
+    ctx.fillText(`${Math.round(x0)}`, xL, area.y + area.h + 8);
+    ctx.fillText(`${Math.round(x1)}`, xR, area.y + area.h + 8);
+
+    ctx.restore();
+  }
+
+  function drawABWave(ctx, area, x0, x1, yScale){
+    const {accent, muted} = getColors();
+    const A = state.ABwave.A, B = state.ABwave.B;
+    const midY = area.y + area.h/2;
+    const ampToY = (a) => midY - (a * (area.h/2) * yScale);
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6,4]);
+    ctx.strokeStyle = accent;
+
+    for (const p of [A,B]){
+      if (!p) continue;
+      const x = area.x + (p.xMs - x0)/(x1-x0)*area.w;
+      ctx.beginPath();
+      ctx.moveTo(x, area.y);
+      ctx.lineTo(x, area.y+area.h);
+      ctx.stroke();
+
+      // ラベル
+      ctx.setLineDash([]);
+      ctx.fillStyle = accent;
+      ctx.font = "13px system-ui";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "bottom";
+      const y = ampToY(p.amp);
+      ctx.fillText(p.tag, x+6, y-6);
+      ctx.setLineDash([6,4]);
+    }
+    ctx.restore();
+  }
+
+  function drawCursorWave(ctx, area, x0, x1, yScale){
+    const c = state.cursorWave;
+    if (!c) return;
+    const {accent} = getColors();
+    ctx.save();
+    ctx.fillStyle = accent;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 2;
+
+    // 青点
+    ctx.beginPath();
+    ctx.arc(c.px, c.py, 5, 0, Math.PI*2);
+    ctx.fill();
+
+    // 近傍ラベル（投影用に大きめ）
+    ctx.font = "16px system-ui";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    const text = `t=${fmt(c.xMs,2)}ms  amp=${fmt(c.amp,4)}`;
+    const tx = clamp(c.px + 10, area.x + 6, area.x + area.w - 260);
+    const ty = clamp(c.py + 10, area.y + 6, area.y + area.h - 30);
+    ctx.fillText(text, tx, ty);
+
+    ctx.restore();
+  }
+
+  // ---------- スペクトル ----------
+  function computeSpecPeak(fArr){
+    // 表示レンジで最大を探す（dBが最大＝0に近い）
+    const {f0,f1} = getSpecRange();
+    const {i0,i1} = specIndexRange(f0,f1,fArr.length);
+    let bestDb = -1e9;
+    let bestI = i0;
+    for (let i=i0;i<=i1;i++){
+      const v = fArr[i];
+      if (v > bestDb){ bestDb=v; bestI=i; }
+    }
+    const fHz = idxToHz(bestI, fArr.length);
+    return {fHz, db:bestDb, i:bestI};
+  }
+
+  function idxToHz(i, nBins){
+    const nyq = state.sampleRate/2;
+    return (i/(nBins-1)) * nyq;
+  }
+  function hzToIdx(f, nBins){
+    const nyq = state.sampleRate/2;
+    return clamp(Math.round((f/nyq)*(nBins-1)), 0, nBins-1);
+  }
+
+  function getSpecRange(){
+    if (state.paused && state.specZoom.enabled){
+      let f0 = state.specZoom.f0 + (state.specZoom.panF||0);
+      let f1 = state.specZoom.f1 + (state.specZoom.panF||0);
+      // クランプ
+      const nyq = state.sampleRate/2;
+      f0 = clamp(f0, 0, nyq-1);
+      f1 = clamp(f1, f0+1, nyq);
+      return {f0,f1};
+    }
+    // 通常
+    return {f0: state.fMin, f1: state.fMax};
+  }
+
+  function specIndexRange(f0,f1,nBins){
+    const i0 = hzToIdx(f0, nBins);
+    const i1 = hzToIdx(f1, nBins);
+    return {i0:Math.min(i0,i1), i1:Math.max(i0,i1)};
+  }
+
+  function drawSpec(){
     const w = cvSpec.width, h = cvSpec.height;
-    const padL = 70, padR = 18, padT = 58, padB = 36;
-    const pw = w - padL - padR;
-    const ph = h - padT - padB;
-    if (px < padL || px > padL+pw || py < padT || py > padT+ph) return null;
+    const ctx = ctxS;
+    clearCanvas(ctx, w, h);
 
-    const hz = x0 + ((px - padL)/pw) * (x1 - x0);
-    const idx = clamp(Math.round(hz / binHz), i0, i1);
-    const val = yArr[idx];
-    return {hz: idx*binHz, val};
-  }
+    const {fg, muted, border, accent} = getColors();
+    const area = plotArea(w,h);
+    drawAxes(ctx, area, true);
 
-  // ----- Delta -----
-  function updateDeltas(){
-    // wave Δ is always based on raw (Pause中のA/Bが前提)
-    if (ABWave.A && ABWave.B){
-      const dt = ABWave.B.tms - ABWave.A.tms;
-      const da = (ABWave.B.raw - ABWave.A.raw); // raw差
-      deltaWave.textContent = `Δ: Δt=${dt.toFixed(3)} ms, Δamp=${da.toFixed(4)}`;
-    } else {
-      deltaWave.textContent = 'Δ: —';
-    }
-
-    if (ABSpec.A && ABSpec.B){
-      const df = ABSpec.B.hz - ABSpec.A.hz;
-      const dy = ABSpec.B.val - ABSpec.A.val;
-      const unit = (yMode==='norm') ? '%' : 'dB';
-      deltaSpec.textContent = `Δ: Δf=${df.toFixed(1)} Hz, Δy=${dy.toFixed(2)} ${unit}`;
-    } else {
-      deltaSpec.textContent = 'Δ: —';
-    }
-  }
-
-  function cycleAB(which, pt){
-    if (which==='wave'){
-      if (!ABWave.A || (ABWave.A && ABWave.B)){
-        ABWave.A = {tms: pt.tms, raw: pt.raw};
-        ABWave.B = null;
-      } else if (ABWave.A && !ABWave.B){
-        ABWave.B = {tms: pt.tms, raw: pt.raw};
-      }
-    } else {
-      if (!ABSpec.A || (ABSpec.A && ABSpec.B)){
-        ABSpec.A = {hz: pt.hz, val: pt.val};
-        ABSpec.B = null;
-      } else if (ABSpec.A && !ABSpec.B){
-        ABSpec.B = {hz: pt.hz, val: pt.val};
+    // データ取得（Pause中はスナップショット固定）
+    let fArr = null;
+    if (state.running){
+      ensureAnalyserSize();
+      if (state.paused){
+        fArr = state.snapSpec;
+      }else{
+        const nBins = analyser.frequencyBinCount;
+        fArr = new Float32Array(nBins);
+        analyser.getFloatFrequencyData(fArr);
       }
     }
-    updateDeltas();
-  }
 
-  // ---------- Overlay rectangle ----------
-  function clearOverlay(which){
-    const ov = (which==='wave') ? ovWave : ovSpec;
-    const ctx = ov.getContext('2d');
-    ctx.clearRect(0,0,ov.width, ov.height);
-  }
-  function drawOverlayRect(which, x0,y0,x1,y1){
-    const ov = (which==='wave') ? ovWave : ovSpec;
-    const ctx = ov.getContext('2d');
-    const c = themeColors();
-    ctx.clearRect(0,0,ov.width, ov.height);
-
-    const left = Math.min(x0,x1), top = Math.min(y0,y1);
-    const w = Math.abs(x1-x0), h = Math.abs(y1-y0);
-
-    ctx.fillStyle = c.overlay;
-    ctx.strokeStyle = c.overlayBorder;
-    ctx.lineWidth = 2 * Math.max(1, (window.devicePixelRatio||1)*0.7);
-    ctx.fillRect(left, top, w, h);
-    ctx.strokeRect(left, top, w, h);
-  }
-
-  // ---------- Zoom / Pan apply ----------
-  function applyZoomFromRect(target, x0,y0,x1,y1){
-    if (Math.abs(x1-x0) < 8 || Math.abs(y1-y0) < 8) return;
-
-    if (target==='wave'){
-      const w = cvWave.width, h = cvWave.height;
-      const padL = 64, padR = 18, padT = 42, padB = 36;
-      const pw = w - padL - padR;
-      const ph = h - padT - padB;
-
-      const left = clamp(Math.min(x0,x1), padL, padL+pw);
-      const right = clamp(Math.max(x0,x1), padL, padL+pw);
-      const top = clamp(Math.min(y0,y1), padT, padT+ph);
-      const bottom = clamp(Math.max(y0,y1), padT, padT+ph);
-
-      const xMinMs = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-      const xMaxMs = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-
-      // y-range is RAW (no runGain here)
-      let yMinRaw = -1, yMaxRaw = 1;
-      if (waveZoom.active){
-        yMinRaw = Math.min(waveZoom.y0,waveZoom.y1);
-        yMaxRaw = Math.max(waveZoom.y0,waveZoom.y1);
-      }
-
-      const nx0 = (left - padL)/pw;
-      const nx1 = (right - padL)/pw;
-      const ny0 = (top - padT)/ph;
-      const ny1 = (bottom - padT)/ph;
-
-      const newX0ms = lerp(xMinMs, xMaxMs, nx0);
-      const newX1ms = lerp(xMinMs, xMaxMs, nx1);
-
-      const newYMaxRaw = lerp(yMaxRaw, yMinRaw, ny0);
-      const newYMinRaw = lerp(yMaxRaw, yMinRaw, ny1);
-
-      waveZoom.active = true;
-      waveZoom.x0 = clamp(newX0ms/1000, 0, waveWindowSec);
-      waveZoom.x1 = clamp(newX1ms/1000, 0, waveWindowSec);
-      waveZoom.y0 = newYMinRaw;
-      waveZoom.y1 = newYMaxRaw;
-    } else {
-      const w = cvSpec.width, h = cvSpec.height;
-      const padL = 70, padR = 18, padT = 58, padB = 36;
-      const pw = w - padL - padR;
-
-      const left = clamp(Math.min(x0,x1), padL, padL+pw);
-      const right = clamp(Math.max(x0,x1), padL, padL+pw);
-
-      const baseMin = specZoom.active ? specZoom.x0 : parseFloat(minHzIn.value);
-      const baseMax = specZoom.active ? specZoom.x1 : parseFloat(maxHzIn.value);
-
-      const nx0 = (left - padL)/pw;
-      const nx1 = (right - padL)/pw;
-
-      const newX0 = lerp(baseMin, baseMax, nx0);
-      const newX1 = lerp(baseMin, baseMax, nx1);
-
-      specZoom.active = true;
-      specZoom.x0 = Math.min(newX0, newX1);
-      specZoom.x1 = Math.max(newX0, newX1);
+    if (!fArr){
+      ctx.save();
+      ctx.fillStyle = muted;
+      ctx.font = "14px system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Startでマイク取得を開始します。", area.x + area.w/2, area.y + area.h/2);
+      ctx.restore();
+      return;
     }
-  }
 
-  function applyPanFromDrag(target, x0,y0,x1,y1){
-    const dx = x1 - x0;
-    const dy = y1 - y0;
+    const nBins = fArr.length;
+    const nyq = state.sampleRate/2;
 
-    if (target==='wave'){
-      const w = cvWave.width, h = cvWave.height;
-      const padL = 64, padR = 18, padT = 42, padB = 36;
-      const pw = w - padL - padR;
-      const ph = h - padT - padB;
+    // 表示周波数レンジ
+    let {f0,f1} = getSpecRange();
+    f0 = clamp(f0, 0, nyq-1);
+    f1 = clamp(f1, f0+1, nyq);
 
-      const xMinMs = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-      const xMaxMs = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-      const spanX = xMaxMs - xMinMs;
+    // 目盛とPEAK表示（上段に数値、その下にPEAK）
+    const peak = state.paused ? (state.snapSpecPeak || computeSpecPeak(fArr)) : computeSpecPeak(fArr);
+    drawXTicksSpec(ctx, area, f0, f1, peak);
 
-      let yMinRaw = -1, yMaxRaw = 1;
-      if (waveZoom.active){
-        yMinRaw = Math.min(waveZoom.y0,waveZoom.y1);
-        yMaxRaw = Math.max(waveZoom.y0,waveZoom.y1);
+    // y変換
+    // dB：fArrはdBFS（負）…見やすいよう [minDb..0] にマップ
+    // 規格化：表示レンジでの最大を 100% とする（Pause中でも固定）
+    const {yMode} = {yMode: state.specYMode};
+
+    let yFunc = null;
+    let yLabelMax = 1;
+
+    if (yMode === "db"){
+      const minDb = -90; // 見やすい固定
+      yFunc = (db) => db; // そのまま
+      yLabelMax = 0;
+      // y描画：上が0dB、下がminDb
+    }else{
+      // 規格化：表示範囲内で最大(=0に近い)を100%とし、minは0%
+      // dB→線形振幅へ近似（10^(db/20)）
+      const {i0,i1} = specIndexRange(f0,f1,nBins);
+      let maxAmp = 1e-12;
+      for (let i=i0;i<=i1;i++){
+        const amp = Math.pow(10, fArr[i]/20);
+        if (amp > maxAmp) maxAmp = amp;
       }
-      const spanY = yMaxRaw - yMinRaw;
-
-      const dXms = -(dx/pw) * spanX;
-      const dYraw = (dy/ph) * spanY;
-
-      let nx0 = xMinMs + dXms;
-      let nx1 = xMaxMs + dXms;
-
-      const minAll = 0;
-      const maxAll = waveWindowSec*1000;
-      const shift = clamp(nx0, minAll, maxAll-spanX) - nx0;
-      nx0 += shift; nx1 += shift;
-
-      const nyMinRaw = yMinRaw + dYraw;
-      const nyMaxRaw = yMaxRaw + dYraw;
-
-      waveZoom.active = true;
-      waveZoom.x0 = nx0/1000;
-      waveZoom.x1 = nx1/1000;
-      waveZoom.y0 = nyMinRaw;
-      waveZoom.y1 = nyMaxRaw;
-    } else {
-      const w = cvSpec.width, h = cvSpec.height;
-      const padL = 70, padR = 18, padT = 58, padB = 36;
-      const pw = w - padL - padR;
-
-      const baseMin = specZoom.active ? specZoom.x0 : parseFloat(minHzIn.value);
-      const baseMax = specZoom.active ? specZoom.x1 : parseFloat(maxHzIn.value);
-      const span = baseMax - baseMin;
-
-      const dHz = -(dx/pw) * span;
-
-      let nx0 = baseMin + dHz;
-      let nx1 = baseMax + dHz;
-
-      const minAll = parseFloat(minHzIn.value);
-      const maxAll = parseFloat(maxHzIn.value);
-      const shift = clamp(nx0, minAll, maxAll-span) - nx0;
-      nx0 += shift; nx1 += shift;
-
-      specZoom.active = true;
-      specZoom.x0 = nx0;
-      specZoom.x1 = nx1;
+      yFunc = (db) => clamp(Math.pow(10, db/20)/maxAmp, -0.05, 1.0); // -5%〜100%
     }
+
+    // 描画（密な領域はmin/max）
+    ctx.save();
+    ctx.strokeStyle = fg;
+    ctx.lineWidth = state.paused ? 2 : 1.5;
+    ctx.globalAlpha = 0.95;
+
+    const {i0,i1} = specIndexRange(f0,f1,nBins);
+    const span = Math.max(1, i1 - i0);
+
+    const xOfIdx = (i) => {
+      const f = idxToHz(i,nBins);
+      return area.x + (f - f0)/(f1-f0)*area.w;
+    };
+    const yOfVal = (v) => {
+      if (yMode === "db"){
+        const minDb = -90;
+        const db = clamp(v, minDb, 0);
+        return area.y + (1 - (db - minDb)/(0 - minDb)) * area.h;
+      }else{
+        const y = yFunc(v); // -0.05..1
+        return area.y + (1 - ((y + 0.05)/1.05)) * area.h;
+      }
+    };
+
+    const pxPerPoint = area.w / span;
+    ctx.beginPath();
+    if (pxPerPoint >= 1.2){
+      for (let i=i0;i<=i1;i++){
+        const x = xOfIdx(i);
+        const y = yOfVal(fArr[i]);
+        if (i===i0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+    }else{
+      const pxN = area.w|0;
+      for (let px=0; px<=pxN; px++){
+        const fA = f0 + (px/pxN)*(f1-f0);
+        const fB = f0 + ((px+1)/pxN)*(f1-f0);
+        const ia = hzToIdx(fA, nBins);
+        const ib = hzToIdx(fB, nBins);
+        let mn=1e9, mx=-1e9;
+        for (let i=Math.min(ia,ib); i<=Math.max(ia,ib); i++){
+          const v = fArr[i];
+          if (v<mn) mn=v;
+          if (v>mx) mx=v;
+        }
+        const x = area.x + (fA-f0)/(f1-f0)*area.w;
+        // dBは「値が大きいほど上」なので、そのままmin/maxを縦線で
+        ctx.moveTo(x, yOfVal(mn));
+        ctx.lineTo(x, yOfVal(mx));
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // A/B & カーソル（Pause中）
+    if (state.paused){
+      drawABSpec(ctx, area, f0,f1, fArr);
+      drawCursorSpec(ctx, area, f0,f1);
+    }
+
+    // 矩形ズームオーバーレイ
+    drawDragOverlay(ctx, dragSpec, area);
   }
 
-  // ---------- Pointer / gesture ----------
-  function canvasPosFromEvent(ev, cv){
-    const rect = cv.getBoundingClientRect();
-    const x = (ev.clientX - rect.left) * (cv.width / rect.width);
-    const y = (ev.clientY - rect.top)  * (cv.height / rect.height);
+  function drawXTicksSpec(ctx, area, f0, f1, peak){
+    const {muted, border, accent} = getColors();
+    const span = f1 - f0;
+    const approxTicks = 5;
+    const raw = span / (approxTicks-1);
+    const step = niceStep(raw);
+
+    ctx.save();
+    ctx.strokeStyle = border;
+    ctx.fillStyle = muted;
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+
+    const labels = [];
+    const start = Math.floor(f0/step)*step;
+    for (let v=start; v<=f1+1e-6; v+=step){
+      if (v < f0-1e-6) continue;
+      if (v > f1+1e-6) continue;
+      const x = area.x + (v - f0)/(f1-f0)*area.w;
+      labels.push({v,x});
+    }
+
+    const minGap = 46;
+    let lastX = -1e9;
+    for (const it of labels){
+      if (it.x - lastX < minGap) continue;
+      lastX = it.x;
+      // 上段：目盛値
+      ctx.fillText(`${Math.round(it.v)}`, it.x, 4);
+      // 目盛線（上側に短く）
+      ctx.beginPath();
+      ctx.moveTo(it.x+0.5, area.y);
+      ctx.lineTo(it.x+0.5, area.y-6);
+      ctx.stroke();
+    }
+
+    // PEAK表示（目盛値の下）
+    ctx.fillStyle = accent;
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    if (peak){
+      const txt = `PEAK: ${Math.round(peak.fHz)} Hz`;
+      ctx.fillText(txt, area.x + 6, 20);
+    }
+    ctx.restore();
+  }
+
+  function drawABSpec(ctx, area, f0,f1, fArr){
+    const {accent} = getColors();
+    const A = state.ABspec.A, B = state.ABspec.B;
+
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6,4]);
+    ctx.strokeStyle = accent;
+
+    for (const p of [A,B]){
+      if (!p) continue;
+      const x = area.x + (p.fHz - f0)/(f1-f0)*area.w;
+      ctx.beginPath();
+      ctx.moveTo(x, area.y);
+      ctx.lineTo(x, area.y+area.h);
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.fillStyle = accent;
+      ctx.font = "13px system-ui";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(p.tag, x+6, area.y+6);
+      ctx.setLineDash([6,4]);
+    }
+    ctx.restore();
+  }
+
+  function drawCursorSpec(ctx, area, f0,f1){
+    const c = state.cursorSpec;
+    if (!c) return;
+    const {accent} = getColors();
+    ctx.save();
+    ctx.fillStyle = accent;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.arc(c.px, c.py, 5, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.font = "16px system-ui";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    const text = `f=${fmt(c.fHz,1)}Hz  y=${formatSpecY(c.y)}`;
+    const tx = clamp(c.px + 10, area.x + 6, area.x + area.w - 280);
+    const ty = clamp(c.py + 10, area.y + 6, area.y + area.h - 30);
+    ctx.fillText(text, tx, ty);
+
+    ctx.restore();
+  }
+
+  // =========================
+  // 操作（ズーム／パン／2点選択）
+  // =========================
+  function getLocalPos(ev, canvas){
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const x = (ev.clientX - rect.left) * dpr;
+    const y = (ev.clientY - rect.top) * dpr;
     return {x,y};
   }
 
-  function maybeStartGesture(target){
-    if (appState !== State.PAUSED) return;
-    if (mode !== Mode.ZOOM) return;
-    if (pointers.size !== 2) return;
-    const pts = [...pointers.values()];
-    const dx = pts[1].x - pts[0].x;
-    const dy = pts[1].y - pts[0].y;
-    const dist = Math.hypot(dx, dy);
-    const cx = (pts[0].x + pts[1].x) / 2;
-    const cy = (pts[0].y + pts[1].y) / 2;
-    gesture = { target, startDist: dist, startCenter: {x: cx, y: cy}, startWaveZoom: {...waveZoom}, startSpecZoom: {...specZoom} };
+  // ドラッグ状態（矩形ズーム）
+  const dragWave = {active:false, x0:0,y0:0,x1:0,y1:0, shift:false};
+  const dragSpec = {active:false, x0:0,y0:0,x1:0,y1:0, shift:false};
+
+  function drawDragOverlay(ctx, drag, area){
+    if (!drag.active) return;
+    const {accent} = getColors();
+    const x0 = clamp(drag.x0, area.x, area.x+area.w);
+    const x1 = clamp(drag.x1, area.x, area.x+area.w);
+    const y0 = clamp(drag.y0, area.y, area.y+area.h);
+    const y1 = clamp(drag.y1, area.y, area.y+area.h);
+    const rx = Math.min(x0,x1), ry=Math.min(y0,y1);
+    const rw = Math.abs(x1-x0), rh=Math.abs(y1-y0);
+    ctx.save();
+    ctx.fillStyle = accent;
+    ctx.globalAlpha = 0.12;
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(rx+0.5, ry+0.5, rw-1, rh-1);
+    ctx.restore();
   }
 
-  function handlePointerMoveForGesture(target, ev){
-    if (!gesture || gesture.target !== target) return;
-    if (pointers.size !== 2) return;
-    if (appState !== State.PAUSED) return;
-    if (mode !== Mode.ZOOM) return;
+  // ピンチ状態（2本指）
+  const pinch = {
+    active:false,
+    canvas:null,
+    ids:[],
+    p0:null, p1:null,
+    dist0:0,
+    center0:null,
+    // 初期レンジ
+    base:null,
+  };
 
-    const wrap = (target==='wave') ? wrapWave : wrapSpec;
+  // 波形：座標変換
+  function waveXFromPx(px, area, x0, x1){
+    return x0 + (px - area.x)/area.w * (x1-x0);
+  }
+  function wavePxFromX(xMs, area, x0, x1){
+    return area.x + (xMs - x0)/(x1-x0) * area.w;
+  }
+  function waveAmpAt(data, xMs){
+    if (!data) return NaN;
+    const tPerSampleMs = 1000 / state.sampleRate;
+    const idx = clamp(Math.round(xMs / tPerSampleMs), 0, data.length-1);
+    return data[idx];
+  }
 
-    const pts = [...pointers.values()];
-    const dx = pts[1].x - pts[0].x;
-    const dy = pts[1].y - pts[0].y;
-    const dist = Math.hypot(dx, dy);
-    const cx = (pts[0].x + pts[1].x) / 2;
-    const cy = (pts[0].y + pts[1].y) / 2;
+  // スペクトル：座標変換
+  function specFFromPx(px, area, f0, f1){
+    return f0 + (px - area.x)/area.w * (f1-f0);
+  }
 
-    const scale = dist / Math.max(1e-6, gesture.startDist);
-    const panX = cx - gesture.startCenter.x;
-    const panY = cy - gesture.startCenter.y;
-
-    if (target === 'wave'){
-      const z0 = gesture.startWaveZoom;
-      const baseX0 = z0.active ? z0.x0 : 0;
-      const baseX1 = z0.active ? z0.x1 : waveWindowSec;
-
-      const baseY0 = z0.active ? Math.min(z0.y0,z0.y1) : -1;
-      const baseY1 = z0.active ? Math.max(z0.y0,z0.y1) :  1;
-
-      const spanX = (baseX1 - baseX0) / scale;
-      const spanY = (baseY1 - baseY0) / scale;
-
-      const rect = wrap.getBoundingClientRect();
-      const nx = (cx - rect.left) / rect.width;
-      const ny = (cy - rect.top)  / rect.height;
-
-      const centerX = lerp(baseX0, baseX1, clamp(nx,0,1));
-      const centerY = lerp(baseY1, baseY0, clamp(ny,0,1));
-
-      let nx0 = centerX - spanX/2;
-      let nx1 = centerX + spanX/2;
-
-      const dxs = -(panX / rect.width) * (baseX1 - baseX0);
-      const dys =  (panY / rect.height) * (baseY1 - baseY0);
-
-      nx0 += dxs; nx1 += dxs;
-
-      const minAll = 0, maxAll = waveWindowSec;
-      const span = nx1 - nx0;
-      const shift = clamp(nx0, minAll, maxAll-span) - nx0;
-      nx0 += shift; nx1 += shift;
-
-      const ny0 = (centerY - spanY/2) + dys;
-      const ny1 = (centerY + spanY/2) + dys;
-
-      waveZoom.active = true;
-      waveZoom.x0 = clamp(nx0, 0, waveWindowSec);
-      waveZoom.x1 = clamp(nx1, 0, waveWindowSec);
-      waveZoom.y0 = ny0;
-      waveZoom.y1 = ny1;
-
-      drawOnce();
-    } else {
-      const z0 = gesture.startSpecZoom;
-      const baseX0 = z0.active ? z0.x0 : parseFloat(minHzIn.value);
-      const baseX1 = z0.active ? z0.x1 : parseFloat(maxHzIn.value);
-      const rect = wrap.getBoundingClientRect();
-      const nx = (cx - rect.left) / rect.width;
-      const centerX = lerp(baseX0, baseX1, clamp(nx,0,1));
-      const spanX = (baseX1 - baseX0) / scale;
-
-      let nx0 = centerX - spanX/2;
-      let nx1 = centerX + spanX/2;
-
-      const dHz = -(panX / rect.width) * (baseX1 - baseX0);
-      nx0 += dHz; nx1 += dHz;
-
-      const minAll = parseFloat(minHzIn.value);
-      const maxAll = parseFloat(maxHzIn.value);
-      const span = nx1 - nx0;
-      const shift = clamp(nx0, minAll, maxAll-span) - nx0;
-      nx0 += shift; nx1 += shift;
-
-      specZoom.active = true;
-      specZoom.x0 = nx0;
-      specZoom.x1 = nx1;
-
-      drawOnce();
+  // 2点選択の循環
+  function cycleAB(target, point){
+    if (!target.A){
+      target.A = {...point, tag:"A"};
+      target.B = null;
+    }else if (!target.B){
+      target.B = {...point, tag:"B"};
+    }else{
+      target.A = {...point, tag:"A"};
+      target.B = null;
     }
   }
 
-  function handlePointerMove(target, ev){
-    if (drag.active && drag.target === target && drag.ptrId === ev.pointerId){
-      const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-      drag.x1 = p.x; drag.y1 = p.y;
-      if (drag.kind === 'zoom') drawOverlayRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
+  // 波形イベント
+  cvWave.addEventListener("pointerdown", (ev) => onPointerDown(ev, cvWave, "wave"));
+  cvWave.addEventListener("pointermove", (ev) => onPointerMove(ev, cvWave, "wave"));
+  cvWave.addEventListener("pointerup",   (ev) => onPointerUp(ev, cvWave, "wave"));
+  cvWave.addEventListener("pointercancel",(ev)=> onPointerUp(ev, cvWave, "wave"));
+  cvWave.addEventListener("dblclick", () => resetZoom(true));
+
+  // スペクトルイベント
+  cvSpec.addEventListener("pointerdown", (ev) => onPointerDown(ev, cvSpec, "spec"));
+  cvSpec.addEventListener("pointermove", (ev) => onPointerMove(ev, cvSpec, "spec"));
+  cvSpec.addEventListener("pointerup",   (ev) => onPointerUp(ev, cvSpec, "spec"));
+  cvSpec.addEventListener("pointercancel",(ev)=> onPointerUp(ev, cvSpec, "spec"));
+  cvSpec.addEventListener("dblclick", () => resetZoom(true));
+
+  function onPointerDown(ev, canvas, which){
+    const isPaused = state.running && state.paused;
+
+    canvas.setPointerCapture(ev.pointerId);
+
+    // 2本指ピンチ開始
+    if (ev.pointerType === "touch"){
+      trackPinchStart(ev, canvas, which);
+      if (pinch.active){
+        // ピンチ中はドラッグ扱いしない
+        return;
+      }
+    }
+
+    const ctx = (which==="wave") ? ctxW : ctxS;
+    const drag = (which==="wave") ? dragWave : dragSpec;
+
+    const area = plotArea(canvas.width, canvas.height);
+    const p = getLocalPos(ev, canvas);
+
+    if (!isPaused){
+      // 測定中：カーソル/ズーム操作は基本無効。ただしズームリセットは可（別）
       return;
     }
 
-    if (appState !== State.PAUSED) return;
+    // Shift+ドラッグで移動
+    drag.shift = !!ev.shiftKey;
 
-    const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-    if (target==='wave'){
-      const pt = pickWaveAtCanvas(p.x, p.y);
-      if (!pt){ cursorWave.active=false; bubbleWave.style.display='none'; drawOnce(); return; }
-      cursorWave.active = true;
-      cursorWave.tms = pt.tms;
-      cursorWave.raw = pt.raw;
-      drawOnce();
-    } else {
-      const pt = pickSpecAtCanvas(p.x, p.y);
-      if (!pt){ cursorSpec.active=false; bubbleSpec.style.display='none'; drawOnce(); return; }
-      cursorSpec.active = true;
-      cursorSpec.hz = pt.hz;
-      cursorSpec.val = pt.val;
-      drawOnce();
-    }
-  }
-
-  function handlePointerDown(target, ev){
-    ev.preventDefault();
-
-    pointers.set(ev.pointerId, {x: ev.clientX, y: ev.clientY});
-
-    if (appState === State.PAUSED && mode === Mode.PICK){
-      const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-      const pt = (target==='wave') ? pickWaveAtCanvas(p.x,p.y) : pickSpecAtCanvas(p.x,p.y);
-      if (!pt) return;
-      cycleAB(target, pt);
-      drawOnce();
-      return;
-    }
-
-    if (appState === State.PAUSED && mode === Mode.ZOOM){
+    if (state.mode === "zoom"){
       drag.active = true;
-      drag.kind = ev.shiftKey ? 'pan' : 'zoom';
-      drag.target = target;
-      drag.ptrId = ev.pointerId;
-      const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-      drag.x0 = drag.x1 = p.x;
-      drag.y0 = drag.y1 = p.y;
-      if (drag.kind === 'zoom') drawOverlayRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
-      else clearOverlay(target);
-      (target==='wave' ? wrapWave : wrapSpec).setPointerCapture(ev.pointerId);
-      return;
-    }
-  }
-
-  function handlePointerUp(target, ev){
-    pointers.delete(ev.pointerId);
-
-    if (drag.active && drag.target === target && drag.ptrId === ev.pointerId){
-      const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
+      drag.x0 = p.x; drag.y0 = p.y;
       drag.x1 = p.x; drag.y1 = p.y;
+      drawAll();
+    }else{
+      // 2点選択：クリック/タップで点を選択
+      pickPoint(which, p, canvas);
+      drawAll();
+    }
+  }
 
-      if (drag.kind === 'zoom') applyZoomFromRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
-      else applyPanFromDrag(target, drag.x0, drag.y0, drag.x1, drag.y1);
+  function onPointerMove(ev, canvas, which){
+    const isPaused = state.running && state.paused;
+    const p = getLocalPos(ev, canvas);
 
+    // ピンチ中
+    if (ev.pointerType === "touch" && pinch.active && pinch.canvas === canvas){
+      trackPinchMove(ev, canvas, which);
+      drawAll();
+      return;
+    }
+
+    if (!isPaused){
+      return;
+    }
+
+    const drag = (which==="wave") ? dragWave : dragSpec;
+    if (drag.active && state.mode === "zoom"){
+      drag.x1 = p.x; drag.y1 = p.y;
+      drawAll();
+      return;
+    }
+
+    // カーソル表示（Pause中）
+    updateCursor(which, p, canvas);
+    drawAll();
+  }
+
+  function onPointerUp(ev, canvas, which){
+    // ピンチ終了
+    if (ev.pointerType === "touch" && pinch.active && pinch.canvas === canvas){
+      trackPinchEnd(ev, canvas);
+      drawAll();
+      return;
+    }
+
+    const isPaused = state.running && state.paused;
+    if (!isPaused) return;
+
+    const drag = (which==="wave") ? dragWave : dragSpec;
+    if (drag.active && state.mode === "zoom"){
       drag.active = false;
-      drag.ptrId = null;
-      clearOverlay(target);
-      drawOnce();
+
+      const area = plotArea(canvas.width, canvas.height);
+      const rx = clamp(Math.min(drag.x0, drag.x1), area.x, area.x+area.w);
+      const rw = clamp(Math.abs(drag.x1 - drag.x0), 0, area.w);
+      const ry = clamp(Math.min(drag.y0, drag.y1), area.y, area.y+area.h);
+      const rh = clamp(Math.abs(drag.y1 - drag.y0), 0, area.h);
+
+      // 小さすぎる場合は無視
+      if (rw < 8 || rh < 8){
+        drawAll();
+        return;
+      }
+
+      if (which === "wave"){
+        applyWaveZoomFromRect(rx, rw, ry, rh, area);
+      }else{
+        applySpecZoomFromRect(rx, rw, ry, rh, area);
+      }
+      drawAll();
+      return;
+    }
+  }
+
+  function updateCursor(which, p, canvas){
+    const area = plotArea(canvas.width, canvas.height);
+    if (p.x < area.x || p.x > area.x+area.w || p.y < area.y || p.y > area.y+area.h){
+      if (which==="wave") state.cursorWave = null;
+      else state.cursorSpec = null;
       return;
     }
 
-    if (pointers.size < 2) gesture = null;
+    if (which==="wave"){
+      const winMs = state.waveWinSec*1000;
+      let x0 = 0, x1 = winMs;
+      if (state.waveZoom.enabled){
+        x0 = state.waveZoom.x0 + (state.waveZoom.panX||0);
+        x1 = state.waveZoom.x1 + (state.waveZoom.panX||0);
+        x0 = clamp(x0, 0, winMs-1);
+        x1 = clamp(x1, x0+1, winMs);
+      }
+      const xMs = waveXFromPx(p.x, area, x0, x1);
+      const data = state.snapWave || readWaveWindow(state.waveWinSec);
+      const amp = waveAmpAt(data, xMs);
+      // 画面座標（amp→py）
+      const midY = area.y + area.h/2;
+      const py = midY - (amp * (area.h/2) * state.waveYZoom);
+      state.cursorWave = {xMs, amp, px:p.x, py};
+    }else{
+      const {f0,f1} = getSpecRange();
+      const fHz = specFFromPx(p.x, area, f0,f1);
+      const fArr = state.snapSpec;
+      if (!fArr) return;
+      const idx = hzToIdx(fHz, fArr.length);
+      const vDb = fArr[idx];
+      let yVal = vDb;
+      if (state.specYMode === "norm"){
+        // 規格化：描画と同じ定義で再計算（簡易）
+        const {i0,i1} = specIndexRange(f0,f1,fArr.length);
+        let maxAmp=1e-12;
+        for (let i=i0;i<=i1;i++){
+          const amp = Math.pow(10, fArr[i]/20);
+          if (amp>maxAmp) maxAmp=amp;
+        }
+        yVal = clamp(Math.pow(10, vDb/20)/maxAmp, -0.05, 1.0);
+      }else{
+        yVal = vDb; // dB
+      }
+      // pyも近似
+      let py = p.y;
+      state.cursorSpec = {fHz, y:yVal, px:p.x, py};
+    }
   }
 
-  // bind pointer events
-  wrapWave.addEventListener('pointerdown', (e) => { handlePointerDown('wave', e); maybeStartGesture('wave'); });
-  wrapWave.addEventListener('pointermove', (e) => {
-    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
-    handlePointerMoveForGesture('wave', e);
-    handlePointerMove('wave', e);
+  function pickPoint(which, p, canvas){
+    if (!(state.running && state.paused)) return;
+
+    const area = plotArea(canvas.width, canvas.height);
+    if (p.x < area.x || p.x > area.x+area.w || p.y < area.y || p.y > area.y+area.h){
+      return;
+    }
+
+    if (which==="wave"){
+      const winMs = state.waveWinSec*1000;
+      let x0=0,x1=winMs;
+      if (state.waveZoom.enabled){
+        x0 = state.waveZoom.x0 + (state.waveZoom.panX||0);
+        x1 = state.waveZoom.x1 + (state.waveZoom.panX||0);
+        x0 = clamp(x0, 0, winMs-1);
+        x1 = clamp(x1, x0+1, winMs);
+      }
+      const xMs = waveXFromPx(p.x, area, x0,x1);
+      const data = state.snapWave || readWaveWindow(state.waveWinSec);
+      const amp = waveAmpAt(data, xMs);
+      cycleAB(state.ABwave, {xMs, amp});
+      // カーソルも更新
+      updateCursor("wave", p, canvas);
+    }else{
+      const {f0,f1} = getSpecRange();
+      const fHz = specFFromPx(p.x, area, f0,f1);
+      const fArr = state.snapSpec;
+      if (!fArr) return;
+      const idx = hzToIdx(fHz, fArr.length);
+      const vDb = fArr[idx];
+      let yVal = vDb;
+      if (state.specYMode === "norm"){
+        const {i0,i1} = specIndexRange(f0,f1,fArr.length);
+        let maxAmp=1e-12;
+        for (let i=i0;i<=i1;i++){
+          const amp = Math.pow(10, fArr[i]/20);
+          if (amp>maxAmp) maxAmp=amp;
+        }
+        yVal = clamp(Math.pow(10, vDb/20)/maxAmp, -0.05, 1.0);
+      }
+      cycleAB(state.ABspec, {fHz, y:yVal});
+      updateCursor("spec", p, canvas);
+    }
+  }
+
+  function applyWaveZoomFromRect(rx, rw, ry, rh, area){
+    // Pause中のみ呼ばれる
+    const winMs = state.waveWinSec*1000;
+    const cur = (() => {
+      if (state.waveZoom.enabled){
+        let a = state.waveZoom.x0 + (state.waveZoom.panX||0);
+        let b = state.waveZoom.x1 + (state.waveZoom.panX||0);
+        a = clamp(a,0,winMs-1); b = clamp(b,a+1,winMs);
+        return {a,b};
+      }
+      return {a:0,b:winMs};
+    })();
+
+    const xA = cur.a + (rx - area.x)/area.w * (cur.b-cur.a);
+    const xB = cur.a + ((rx+rw) - area.x)/area.w * (cur.b-cur.a);
+
+    state.waveZoom.enabled = true;
+    state.waveZoom.x0 = clamp(Math.min(xA,xB), 0, winMs-1);
+    state.waveZoom.x1 = clamp(Math.max(xA,xB), state.waveZoom.x0+1, winMs);
+    state.waveZoom.panX = 0;
+
+    // 縦方向ズームは「波形のみ」のスライダーで扱う（仕様に沿ってシンプルに）
+  }
+
+  function applySpecZoomFromRect(rx, rw, ry, rh, area){
+    const {f0,f1} = getSpecRange();
+    const a = f0, b = f1;
+    const fA = a + (rx - area.x)/area.w * (b-a);
+    const fB = a + ((rx+rw)-area.x)/area.w * (b-a);
+
+    state.specZoom.enabled = true;
+    state.specZoom.f0 = Math.min(fA,fB);
+    state.specZoom.f1 = Math.max(fA,fB);
+    state.specZoom.panF = 0;
+  }
+
+  // ---- ピンチ（ズーム＆2本指パン）----
+  const pointers = new Map(); // id -> {x,y}
+  function trackPinchStart(ev, canvas, which){
+    pointers.set(ev.pointerId, {x:ev.clientX, y:ev.clientY});
+    if (pointers.size >= 2){
+      const ids = Array.from(pointers.keys()).slice(0,2);
+      const p0 = pointers.get(ids[0]);
+      const p1 = pointers.get(ids[1]);
+      const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      const center = {x:(p0.x+p1.x)/2, y:(p0.y+p1.y)/2};
+
+      pinch.active = true;
+      pinch.canvas = canvas;
+      pinch.ids = ids;
+      pinch.p0 = {...p0};
+      pinch.p1 = {...p1};
+      pinch.dist0 = Math.max(1, dist);
+      pinch.center0 = {...center};
+
+      // ベースレンジを保存
+      if (!(state.running && state.paused)) return; // Pause中のみズーム（仕様）
+      if (which==="wave"){
+        const winMs = state.waveWinSec*1000;
+        let x0=0,x1=winMs;
+        if (state.waveZoom.enabled){
+          x0 = state.waveZoom.x0 + (state.waveZoom.panX||0);
+          x1 = state.waveZoom.x1 + (state.waveZoom.panX||0);
+          x0 = clamp(x0,0,winMs-1); x1=clamp(x1,x0+1,winMs);
+        }
+        pinch.base = {which, x0,x1, pan: (state.waveZoom.panX||0)};
+      }else{
+        const r = getSpecRange();
+        pinch.base = {which, f0:r.f0, f1:r.f1, pan:(state.specZoom.panF||0)};
+      }
+    }
+  }
+
+  function trackPinchMove(ev, canvas, which){
+    if (!pinch.active) return;
+    pointers.set(ev.pointerId, {x:ev.clientX, y:ev.clientY});
+
+    const id0 = pinch.ids[0], id1 = pinch.ids[1];
+    const p0 = pointers.get(id0);
+    const p1 = pointers.get(id1);
+    if (!p0 || !p1) return;
+
+    const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+    const center = {x:(p0.x+p1.x)/2, y:(p0.y+p1.y)/2};
+    const scale = clamp(dist / pinch.dist0, 0.2, 5.0);
+
+    if (!(state.running && state.paused)) return; // Pause中のみ（仕様）
+
+    // 2本指パン：中心の移動量をレンジに反映
+    const dx = center.x - pinch.center0.x;
+    // canvas上のdxをデータレンジに換算（ざっくり）
+    const rect = canvas.getBoundingClientRect();
+    const frac = dx / Math.max(1, rect.width);
+
+    if (pinch.base?.which === "wave"){
+      const winMs = state.waveWinSec*1000;
+      const baseX0 = pinch.base.x0;
+      const baseX1 = pinch.base.x1;
+      const baseSpan = baseX1 - baseX0;
+
+      const newSpan = clamp(baseSpan / scale, 1, winMs);
+      // 中心を維持
+      const baseCenter = (baseX0 + baseX1)/2;
+      let newX0 = baseCenter - newSpan/2;
+      let newX1 = baseCenter + newSpan/2;
+
+      // pan（2本指）
+      const panMs = -frac * newSpan; // 右へ動くと左に見える補正
+      newX0 += panMs; newX1 += panMs;
+
+      newX0 = clamp(newX0, 0, winMs-1);
+      newX1 = clamp(newX1, newX0+1, winMs);
+
+      state.waveZoom.enabled = true;
+      state.waveZoom.x0 = newX0;
+      state.waveZoom.x1 = newX1;
+      state.waveZoom.panX = 0;
+    }else if (pinch.base?.which === "spec"){
+      const nyq = state.sampleRate/2;
+      const baseF0 = pinch.base.f0;
+      const baseF1 = pinch.base.f1;
+      const baseSpan = baseF1 - baseF0;
+
+      const newSpan = clamp(baseSpan / scale, 1, nyq);
+      const baseCenter = (baseF0 + baseF1)/2;
+      let newF0 = baseCenter - newSpan/2;
+      let newF1 = baseCenter + newSpan/2;
+
+      const panHz = -frac * newSpan;
+      newF0 += panHz; newF1 += panHz;
+
+      newF0 = clamp(newF0, 0, nyq-1);
+      newF1 = clamp(newF1, newF0+1, nyq);
+
+      state.specZoom.enabled = true;
+      state.specZoom.f0 = newF0;
+      state.specZoom.f1 = newF1;
+      state.specZoom.panF = 0;
+    }
+  }
+
+  function trackPinchEnd(ev, canvas){
+    pointers.delete(ev.pointerId);
+    // 2本指が切れたら終了
+    if (pointers.size < 2){
+      pinch.active = false;
+      pinch.canvas = null;
+      pinch.ids = [];
+      pinch.base = null;
+    }
+  }
+
+  // ---- Shift+ドラッグ パン（PC）----
+  // ※ここでは「Shift+ドラッグ」を矩形ではなくパンとして扱う
+  //   ただし仕様上「Shift + ドラッグ → 移動」なので、ズームモード中にのみ有効
+  document.addEventListener("keydown", (e) => {
+    // input/select フォーカス中は無効（仕様）
+    const tag = document.activeElement?.tagName?.toLowerCase();
+    if (tag === "input" || tag === "select" || tag === "textarea") return;
+
+    const k = e.key.toLowerCase();
+    if (k === "s"){ e.preventDefault(); if (!state.running) start(); }
+    else if (k === "p"){ e.preventDefault(); if (state.running) pauseResume(); }
+    else if (k === "r"){ e.preventDefault(); resetAll(false); }
+    else if (k === "z"){ e.preventDefault(); toggleMode(); }
+    else if (k === "w"){ e.preventDefault(); setView("wave"); }
+    else if (k === "f"){ e.preventDefault(); setView("spec"); }
+    else if (k === "b"){ e.preventDefault(); setView("both"); }
+    else if (k === "v"){ e.preventDefault(); if (state.running && state.paused) exportCSV(); }
+    else if (k === "escape"){
+      e.preventDefault();
+      state.cursorWave = null;
+      state.cursorSpec = null;
+      state.ABwave = {A:null,B:null};
+      state.ABspec = {A:null,B:null};
+      drawAll();
+    }
   });
-  wrapWave.addEventListener('pointerup',   (e) => handlePointerUp('wave', e));
-  wrapWave.addEventListener('pointercancel',(e) => handlePointerUp('wave', e));
 
-  wrapSpec.addEventListener('pointerdown', (e) => { handlePointerDown('spec', e); maybeStartGesture('spec'); });
-  wrapSpec.addEventListener('pointermove', (e) => {
-    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
-    handlePointerMoveForGesture('spec', e);
-    handlePointerMove('spec', e);
-  });
-  wrapSpec.addEventListener('pointerup',   (e) => handlePointerUp('spec', e));
-  wrapSpec.addEventListener('pointercancel',(e) => handlePointerUp('spec', e));
-
-  // Double click zoom reset (ALWAYS allowed)
-  wrapWave.addEventListener('dblclick', () => { resetWaveZoom(); clearOverlay('wave'); drawOnce(); });
-  wrapSpec.addEventListener('dblclick', () => { resetSpecZoom(); clearOverlay('spec'); drawOnce(); });
-
-  // prevent wheel zoom
-  wrapWave.addEventListener('wheel', (e) => { e.preventDefault(); }, {passive:false});
-  wrapSpec.addEventListener('wheel', (e) => { e.preventDefault(); }, {passive:false});
-
-  // ---------- Bubbles ----------
-  function placeBubble(bubble, wrap, nx, ny){
-    const rect = wrap.getBoundingClientRect();
-    bubble.style.left = `${nx * rect.width}px`;
-    bubble.style.top  = `${ny * rect.height}px`;
+  // パン（Shift+ドラッグ）は、矩形ズーム中に shift=true のとき、矩形ではなく pan にする
+  // ここでは簡易：ドラッグ開始時に shift が押されていたら「パン」に切替
+  function patchPan(drag, canvas, which){
+    // 未使用（必要なら拡張）
   }
 
-  // ---------- Wave drawing ----------
-  function drawWaveAB(ctx, c, padL, padT, pw, ph, xMin, xMax, yMin, yMax, innerPad){
-    ctx.save();
-    ctx.strokeStyle = c.accent2;
-    ctx.lineWidth = 1.5 * Math.max(1, (window.devicePixelRatio||1)*0.6);
+  // =========================
+  // CSV（Pause中のみ）
+  // =========================
+  function exportCSV(){
+    if (!(state.running && state.paused)) return;
 
-    const phIn = ph - 2*innerPad;
-    function mapY(val){
-      return padT + innerPad + (1 - (val - yMin)/(yMax-yMin)) * phIn;
-    }
+    const meta = [];
+    meta.push(`# sampleRate,${state.sampleRate}`);
+    meta.push(`# fftSize,${state.fftSize}`);
+    meta.push(`# spec_fmin,${state.fMin}`);
+    meta.push(`# spec_fmax,${state.fMax}`);
+    meta.push(`# spec_yMode,${state.specYMode}`);
+    meta.push(`# wave_win_sec,${state.waveWinSec.toFixed(2)}`);
+    meta.push(`# wave_zoom,${state.waveZoom.enabled ? `${state.waveZoom.x0.toFixed(2)}..${state.waveZoom.x1.toFixed(2)} ms` : "none"}`);
+    meta.push(`# spec_zoom,${state.specZoom.enabled ? `${state.specZoom.f0.toFixed(1)}..${state.specZoom.f1.toFixed(1)} Hz` : "none"}`);
 
-    function drawLine(pt){
-      const x = padL + (pt.tms - xMin)/(xMax-xMin) * pw;
-      ctx.beginPath();
-      ctx.moveTo(x, padT);
-      ctx.lineTo(x, padT+ph);
-      ctx.stroke();
-
-      const y = mapY(pt.raw);
-      ctx.fillStyle = c.accent2;
-      ctx.beginPath();
-      ctx.arc(x, y, 4.5 * Math.max(1, (window.devicePixelRatio||1)*0.6), 0, Math.PI*2);
-      ctx.fill();
-    }
-    if (ABWave.A) drawLine(ABWave.A);
-    if (ABWave.B) drawLine(ABWave.B);
-    ctx.restore();
-  }
-
-  function drawWave(c){
-    const ctx = cvWave.getContext('2d');
-    const w = cvWave.width, h = cvWave.height;
-
-    if (appState === State.RUNNING){
-      snapWave = getWaveWindowFromRing();
-    } else if (appState === State.STOPPED){
-      snapWave = null;
-    }
-
-    clearCanvas(ctx, w, h, c.bg);
-
-    const padL = 64, padR = 18, padT = 42, padB = 36;
-    const pw = w - padL - padR;
-    const ph = h - padT - padB;
-
-    ctx.strokeStyle = c.border;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(padL, padT, pw, ph);
-
-    ctx.strokeStyle = c.grid;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i=1;i<5;i++){
-      const y = padT + ph * (i/5);
-      ctx.moveTo(padL, y); ctx.lineTo(padL+pw, y);
-    }
-    ctx.stroke();
-
-    // ★ 測定中のみ表示倍率（Pause中は 1 固定）
-    const g = (appState === State.RUNNING) ? waveGain : 1.0;
-
-    // x range (ms)
-    const xMin = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-    const xMax = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-
-    // y range is always RAW (zoom box). run gain does NOT change axis.
-    let yMinRaw = -1;
-    let yMaxRaw =  1;
-    if (waveZoom.active){
-      const r0 = Math.min(waveZoom.y0, waveZoom.y1);
-      const r1 = Math.max(waveZoom.y0, waveZoom.y1);
-      if (Math.abs(r1 - r0) > 1e-9){
-        yMinRaw = r0;
-        yMaxRaw = r1;
+    // 波形：表示・ズーム範囲のみ
+    const wave = state.snapWave || readWaveWindow(state.waveWinSec);
+    let waveLines = ["t_ms,amp"];
+    if (wave){
+      const winMs = state.waveWinSec*1000;
+      let x0=0,x1=winMs;
+      if (state.waveZoom.enabled){
+        x0 = state.waveZoom.x0; x1 = state.waveZoom.x1;
+      }
+      const tPerSampleMs = 1000/state.sampleRate;
+      const i0 = Math.floor(x0/tPerSampleMs);
+      const i1 = Math.min(wave.length-1, Math.ceil(x1/tPerSampleMs));
+      for (let i=i0;i<=i1;i++){
+        const t = i * tPerSampleMs;
+        waveLines.push(`${t.toFixed(4)},${wave[i].toFixed(6)}`);
       }
     }
 
-    // ticks
-    const ticks = computeTicks(xMin, xMax, 5);
-    ctx.fillStyle = c.fg;
-    ctx.font = `${Math.round(12*(window.devicePixelRatio||1))}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.strokeStyle = c.grid;
-    ctx.lineWidth = 1;
-
-    for (const t of ticks){
-      const x = padL + (t - xMin) / (xMax - xMin) * pw;
-      ctx.beginPath();
-      ctx.moveTo(x, padT); ctx.lineTo(x, padT+ph);
-      ctx.stroke();
-    }
-    let lastLabelX = -1e9;
-    const minDx = 70 * Math.max(1, (window.devicePixelRatio||1));
-    for (const t of ticks){
-      const x = padL + (t - xMin) / (xMax - xMin) * pw;
-      if (x - lastLabelX < minDx) continue;
-      lastLabelX = x;
-      const label = `${t.toFixed(spanDigits(xMax-xMin))}`;
-      ctx.fillText(label, x, padT - 6);
-    }
-    ctx.textAlign = 'right';
-    ctx.fillText('ms', padL+pw, padT - 6);
-
-    const innerPad = 2 * Math.max(1, (window.devicePixelRatio||1));
-    const phIn = ph - 2*innerPad;
-
-    function mapY(valRaw){
-      return padT + innerPad + (1 - (valRaw - yMinRaw)/(yMaxRaw-yMinRaw)) * phIn;
-    }
-
-    if (!snapWave){
-      ctx.fillStyle = c.muted;
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
-      ctx.font = `${Math.round(14*(window.devicePixelRatio||1))}px system-ui, sans-serif`;
-      ctx.fillText('Startでマイク入力を開始します', padL+pw/2, padT+ph/2);
-      drawWaveAB(ctx, c, padL, padT, pw, ph, xMin, xMax, yMinRaw, yMaxRaw, innerPad);
-      return;
-    }
-
-    // waveform min/max per pixel (NOTE: axis is raw; we only scale the value for display, then clamp to axis)
-    ctx.strokeStyle = c.accent;
-    ctx.lineWidth = 1.5 * Math.max(1, (window.devicePixelRatio||1)*0.6);
-    ctx.beginPath();
-
-    const dtms = 1000 / sampleRate;
-    const i0 = Math.max(0, Math.floor(xMin / dtms));
-    const i1 = Math.min(snapWave.length-1, Math.ceil(xMax / dtms));
-    const nVis = i1 - i0 + 1;
-
-    const pxCount = Math.max(1, Math.floor(pw));
-    const spp = nVis / pxCount;
-
-    for (let px=0; px<pxCount; px++){
-      const a = Math.floor(i0 + px*spp);
-      const b = Math.floor(i0 + (px+1)*spp);
-      let mn =  1e9, mx = -1e9;
-      const bb = Math.min(i1, Math.max(a+1, b));
-      for (let i=a; i<=bb; i++){
-        let v = snapWave[i] * g;           // ★ 測定中だけ拡大
-        v = clamp(v, yMinRaw, yMaxRaw);    // 見切れ防止（枠内で見える）
-        if (v<mn) mn=v;
-        if (v>mx) mx=v;
+    // スペクトル：表示範囲のみ
+    const fArr = state.snapSpec;
+    let specLines = ["f_hz,y"];
+    if (fArr){
+      const {f0,f1} = getSpecRange();
+      const {i0,i1} = specIndexRange(f0,f1,fArr.length);
+      // 規格化用 maxAmp をここで再計算（描画と一致）
+      let maxAmp=1e-12;
+      if (state.specYMode==="norm"){
+        for (let i=i0;i<=i1;i++){
+          const amp = Math.pow(10, fArr[i]/20);
+          if (amp>maxAmp) maxAmp=amp;
+        }
       }
-      const x = padL + (px / (pxCount-1)) * pw;
-      ctx.moveTo(x, mapY(mx));
-      ctx.lineTo(x, mapY(mn));
-    }
-    ctx.stroke();
-
-    // cursor (Pause only, g=1 by design)
-    if (appState === State.PAUSED && cursorWave.active){
-      const x = padL + (cursorWave.tms - xMin)/(xMax-xMin) * pw;
-      const y = mapY(cursorWave.raw);
-      drawCursorPoint(ctx, c, x, y);
-
-      bubbleWave.style.display = 'block';
-      bubbleWave.textContent = `t=${cursorWave.tms.toFixed(3)} ms, amp=${cursorWave.raw.toFixed(4)}`;
-      placeBubble(bubbleWave, wrapWave, x/cvWave.width, y/cvWave.height);
-    } else {
-      bubbleWave.style.display = 'none';
-    }
-
-    drawWaveAB(ctx, c, padL, padT, pw, ph, xMin, xMax, yMinRaw, yMaxRaw, innerPad);
-  }
-
-  // ---------- Spectrum drawing ----------
-  function drawSpecAB(ctx, c, padL, padT, pw, ph, xMin, xMax, yMin, yMax, innerPad){
-    ctx.save();
-    ctx.strokeStyle = c.accent2;
-    ctx.lineWidth = 1.5 * Math.max(1, (window.devicePixelRatio||1)*0.6);
-
-    const phIn = ph - 2*innerPad;
-    const mapY = (val) => padT + innerPad + (1 - (val - yMin)/(yMax-yMin)) * phIn;
-
-    function drawLine(pt){
-      const x = padL + (pt.hz - xMin)/(xMax-xMin) * pw;
-      ctx.beginPath();
-      ctx.moveTo(x, padT);
-      ctx.lineTo(x, padT+ph);
-      ctx.stroke();
-
-      const y = mapY(pt.val);
-      ctx.fillStyle = c.accent2;
-      ctx.beginPath();
-      ctx.arc(x, y, 4.5 * Math.max(1, (window.devicePixelRatio||1)*0.6), 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    if (ABSpec.A) drawLine(ABSpec.A);
-    if (ABSpec.B) drawLine(ABSpec.B);
-
-    ctx.restore();
-  }
-
-  function drawSpec(c){
-    const ctx = cvSpec.getContext('2d');
-    const w = cvSpec.width, h = cvSpec.height;
-
-    if (appState === State.STOPPED){
-      snapSpec = null;
-    }
-
-    const data = getSpectrumDisplayData();
-    clearCanvas(ctx, w, h, c.bg);
-
-    const padL = 70, padR = 18, padT = 58, padB = 36;
-    const pw = w - padL - padR;
-    const ph = h - padT - padB;
-
-    ctx.strokeStyle = c.border;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(padL, padT, pw, ph);
-
-    ctx.strokeStyle = c.grid;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i=1;i<5;i++){
-      const y = padT + ph * (i/5);
-      ctx.moveTo(padL, y); ctx.lineTo(padL+pw, y);
-    }
-    ctx.stroke();
-
-    if (!data){
-      ctx.fillStyle = c.muted;
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
-      ctx.font = `${Math.round(14*(window.devicePixelRatio||1))}px system-ui, sans-serif`;
-      ctx.fillText('Startでマイク入力を開始します', padL+pw/2, padT+ph/2);
-      return;
-    }
-
-    const {binHz, yArr, i0, i1, x0, x1} = data;
-
-    // ★ 規格化の縦軸最小値を下げる（0%が枠に張り付かず、少し下に余白ができる）
-    let yMin, yMax;
-    if (yMode === 'norm'){ yMin = -8; yMax = 100; }  // ここで下限を調整（例: -5〜-10）
-    else { yMin = -140; yMax = 0; }
-
-    const ticks = computeTicks(x0, x1, 5);
-
-    // peak per tick segment
-    specPeaks = [];
-    for (let ti=0; ti<ticks.length; ti++){
-      const tHz = ticks[ti];
-      const next = (ti < ticks.length-1) ? ticks[ti+1] : x1;
-      let a = clamp(Math.floor(tHz / binHz), i0, i1);
-      let b = clamp(Math.floor(next / binHz), i0, i1);
-      if (b < a) [a,b] = [b,a];
-      let peak = -1e9;
-      for (let i=a;i<=b;i++) peak = Math.max(peak, yArr[i]);
-      if (!Number.isFinite(peak)) peak = 0;
-      specPeaks.push(peak);
-    }
-
-    ctx.font = `${Math.round(12*(window.devicePixelRatio||1))}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle = c.fg;
-    ctx.strokeStyle = c.grid;
-    ctx.lineWidth = 1;
-
-    for (const tHz of ticks){
-      const x = padL + (tHz - x0)/(x1-x0) * pw;
-      ctx.beginPath();
-      ctx.moveTo(x, padT); ctx.lineTo(x, padT+ph);
-      ctx.stroke();
-    }
-
-    let lastX = -1e9;
-    const minDx = 70 * Math.max(1, (window.devicePixelRatio||1));
-    for (let ti=0; ti<ticks.length; ti++){
-      const tHz = ticks[ti];
-      const x = padL + (tHz - x0)/(x1-x0) * pw;
-      if (x - lastX < minDx) continue;
-      lastX = x;
-
-      const lbl = formatHz(tHz);
-      ctx.fillStyle = c.fg;
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(lbl, x, padT - 26);
-
-      const pk = specPeaks[ti];
-      const pkTxt = (yMode==='norm') ? `${pk.toFixed(0)}%` : `${pk.toFixed(1)} dB`;
-      ctx.fillStyle = c.muted;
-      ctx.textBaseline = 'top';
-      ctx.fillText(pkTxt, x, padT - 22);
-    }
-
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle = c.fg;
-    ctx.fillText('Hz', padL+pw, padT - 26);
-
-    const innerPad = 2 * Math.max(1, (window.devicePixelRatio||1));
-    const phIn = ph - 2*innerPad;
-    const mapY = (val) => padT + innerPad + (1 - (val - yMin)/(yMax-yMin)) * phIn;
-
-    // spectrum
-    ctx.strokeStyle = c.accent;
-    ctx.lineWidth = 1.5 * Math.max(1, (window.devicePixelRatio||1)*0.6);
-    ctx.beginPath();
-
-    const nVis = i1 - i0 + 1;
-    const pxCount = Math.max(1, Math.floor(pw));
-    const spp = nVis / pxCount;
-
-    for (let px=0; px<pxCount; px++){
-      const a = Math.floor(i0 + px*spp);
-      const b = Math.floor(i0 + (px+1)*spp);
-      let mn =  1e9, mx = -1e9;
-      const bb = Math.min(i1, Math.max(a+1, b));
-      for (let i=a; i<=bb; i++){
-        const v = yArr[i];
-        if (v < mn) mn = v;
-        if (v > mx) mx = v;
+      for (let i=i0;i<=i1;i++){
+        const fHz = idxToHz(i, fArr.length);
+        let y = fArr[i];
+        if (state.specYMode==="norm"){
+          y = clamp(Math.pow(10, y/20)/maxAmp, -0.05, 1.0);
+        }
+        specLines.push(`${fHz.toFixed(3)},${(state.specYMode==="db") ? y.toFixed(4) : y.toFixed(6)}`);
       }
-      const x = padL + (px / (pxCount-1)) * pw;
-      ctx.moveTo(x, mapY(mx));
-      ctx.lineTo(x, mapY(mn));
-    }
-    ctx.stroke();
-
-    // cursor
-    if (appState === State.PAUSED && cursorSpec.active){
-      const x = padL + (cursorSpec.hz - x0)/(x1-x0) * pw;
-      const y = mapY(cursorSpec.val);
-      drawCursorPoint(ctx, c, x, y);
-
-      bubbleSpec.style.display = 'block';
-      bubbleSpec.textContent = `f=${cursorSpec.hz.toFixed(1)} Hz, y=${(yMode==='norm'?cursorSpec.val.toFixed(2)+'%':cursorSpec.val.toFixed(2)+' dB')}`;
-      placeBubble(bubbleSpec, wrapSpec, x/cvSpec.width, y/cvSpec.height);
-    } else {
-      bubbleSpec.style.display = 'none';
     }
 
-    drawSpecAB(ctx, c, padL, padT, pw, ph, x0, x1, yMin, yMax, innerPad);
+    const text =
+      meta.join("\n") + "\n\n" +
+      "## waveform\n" + waveLines.join("\n") + "\n\n" +
+      "## spectrum\n" + specLines.join("\n") + "\n";
+
+    downloadText("mic_wave_spectrum.csv", text);
   }
 
-  // ---------- CSV buttons depend on state ----------
-  // (already handled by setAppState)
-
-  // ---------- Start/Pause/Reset UI bindings ----------
-  // (already bound above)
-
-  // ---------- Init ----------
-  function initUI(){
-    setTheme('light');
-    setView('both');
-    setMode(Mode.ZOOM);
-    setWaveWindow(1.0);
-    setWaveGain(waveGain);
-    setSpecRange(200, 1500);
-    setFFTSize(8192);
-    yMode = 'norm';
-    btnSpecYAxis.textContent = '縦軸：規格化';
-    setAppState(State.STOPPED);
-    resizeCanvases();
-    drawOnce();
-    updateDeltas();
+  // =========================
+  // エラー表示
+  // =========================
+  const errBox = $("err");
+  function showErr(msg){
+    errBox.style.display = "block";
+    errBox.textContent = msg;
   }
-  initUI();
-
-  // ---------- Key binding for Esc to clear ----------
-  function escClear(){ clearAllCursorsAB(); drawOnce(); }
-
-  // ---------- CSV / Reset helpers require these ----------
-  function saveText(text, filename){
-    const blob = new Blob([text], {type:'text/csv;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+  function clearErr(){
+    errBox.style.display = "none";
+    errBox.textContent = "";
   }
 
-  // ---------- Buttons (CSV already wired) ----------
-  // (no extra)
+  // =========================
+  // 初期化
+  // =========================
+  setWaveWin(1.0);
+  setFMin(200);
+  setFMax(1500);
+  updateUI();
+  resizeCanvases();
+  drawAll();
 
 })();
 </script>

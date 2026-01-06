@@ -109,6 +109,16 @@
     }
     canvas{display:block; width:100%; height:320px}
     .big canvas{height:520px}
+
+    .mobileOnly{display:none}
+    .desktopOnly{display:flex}
+    @media (max-width: 600px){
+      .desktopOnly{display:none !important}
+      .mobileOnly{display:flex !important}
+      canvas{height:220px}
+      .big canvas{height:360px}
+    }
+
     .overlayRect{
       position:absolute; inset:0; pointer-events:none;
     }
@@ -162,7 +172,7 @@
 <div class="app" id="app" data-theme="light">
   <!-- TOP BAR -->
   <div class="topbar">
-    <div class="group">
+    <div class="group desktopOnly">
       <button id="btnStart" class="primary">Start</button>
       <button id="btnPause">Pause</button>
       <button id="btnReset" class="danger">Reset</button>
@@ -196,6 +206,12 @@
         <div class="panelHeader">
           <h2>波形</h2>
           <div class="controls">
+            <div class="controlRow mobileOnly">
+  <button id="btnStartWave" class="primary">Start</button>
+  <button id="btnPauseWave">Pause</button>
+  <button id="btnResetWave" class="danger">Reset</button>
+</div>
+            
             <div class="controlRow">
               <label for="waveWinRange">波形時間窓（N秒）</label>
               <input id="waveWinRange" type="range" min="0.05" max="1.0" step="0.01" value="1.0" />
@@ -331,6 +347,14 @@
   const btnStart = document.getElementById('btnStart');
   const btnPause = document.getElementById('btnPause');
   const btnReset = document.getElementById('btnReset');
+  // mobile in-panel controls
+  const btnStartWave = document.getElementById('btnStartWave');
+  const btnPauseWave = document.getElementById('btnPauseWave');
+  const btnResetWave = document.getElementById('btnResetWave');
+  const btnStartSpec = document.getElementById('btnStartSpec');
+  const btnPauseSpec = document.getElementById('btnPauseSpec');
+  const btnResetSpec = document.getElementById('btnResetSpec');
+
 
   const tabBoth = document.getElementById('tabBoth');
   const tabWave = document.getElementById('tabWave');
@@ -462,7 +486,10 @@
 
   // Touch gesture (pinch / pan)
   const pointers = new Map(); // id -> {x,y}
-  let gesture = null; // {target, startDist, startCenter, startZoom}
+  let gesture = null; // {target, 
+  // mobile double-tap detection
+  const lastTap = {wave:{t:0,x:0,y:0}, spec:{t:0,x:0,y:0}};
+startDist, startCenter, startZoom}
 
   // ---------- Canvas Setup ----------
   function resizeCanvases(){
@@ -561,7 +588,21 @@
     waveGain = val;
     waveGainRange.value = String(val);
     waveGainNum.value = String(val);
-    // Pause中は固定倍率(waveGainHold)を維持するので即時反映しないが、UI更新のみ行う
+
+    // Pause中：表示倍率も追従させる（その場で見た目が変わるように）
+    if (appState === State.PAUSED){
+      const prev = waveGainHold;
+      waveGainHold = val;
+      const k = waveGainHold / Math.max(1e-9, prev);
+      if (waveZoom.active){
+        waveZoom.y0 *= k;
+        waveZoom.y1 *= k;
+      } else {
+        // 未ズームなら表示レンジを倍率に合わせる
+        waveZoom.y0 = -1 * waveGainHold;
+        waveZoom.y1 =  1 * waveGainHold;
+      }
+    }
     drawOnce();
   }
   // init
@@ -880,6 +921,13 @@
   btnStart.addEventListener('click', start);
   btnPause.addEventListener('click', pauseToggle);
   btnReset.addEventListener('click', resetAll);
+  // mobile: same handlers
+  if (btnStartWave) btnStartWave.addEventListener('click', start);
+  if (btnPauseWave) btnPauseWave.addEventListener('click', pauseToggle);
+  if (btnResetWave) btnResetWave.addEventListener('click', resetAll);
+  if (btnStartSpec) btnStartSpec.addEventListener('click', start);
+  if (btnPauseSpec) btnPauseSpec.addEventListener('click', pauseToggle);
+  if (btnResetSpec) btnResetSpec.addEventListener('click', resetAll);
 
   // ---------- CSV ----------
   function downloadCSVWave(){
@@ -1104,11 +1152,11 @@
     ctx.stroke();
 
     // y axis range
-    let yMin = -1, yMax = 1;
+    let yMin = -1 * gWave, yMax = 1 * gWave;
     if (waveZoom.active){
       yMin = Math.min(waveZoom.y0, waveZoom.y1);
       yMax = Math.max(waveZoom.y0, waveZoom.y1);
-      if (Math.abs(yMax - yMin) < 1e-9){ yMin=-1; yMax=1; }
+      if (Math.abs(yMax - yMin) < 1e-9){ yMin=-1 * gWave; yMax=1 * gWave; }
     }
 
     // x range (ms)
@@ -1536,11 +1584,11 @@
 
     const xMin = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
     const xMax = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-    let yMin = -1, yMax = 1;
+    let yMin = -1 * gWave, yMax = 1 * gWave;
     if (waveZoom.active){
       yMin = Math.min(waveZoom.y0, waveZoom.y1);
       yMax = Math.max(waveZoom.y0, waveZoom.y1);
-      if (Math.abs(yMax-yMin) < 1e-9){ yMin=-1; yMax=1; }
+      if (Math.abs(yMax-yMin) < 1e-9){ yMin=-1 * gPick; yMax=1 * gPick; }
     }
 
     const tms = xMin + ((px - padL)/pw) * (xMax - xMin);
@@ -1974,6 +2022,28 @@
   }
   function handlePointerUp(target, ev){
     if (ev.pointerType === 'mouse') return;
+
+    // double-tap to reset zoom (mobile)
+    if (ev.pointerType === 'touch'){
+      const now = performance.now();
+      const r = wrapRect(target);
+      const x = ev.clientX - r.left;
+      const y = ev.clientY - r.top;
+
+      const lt = lastTap[target];
+      const dt = now - lt.t;
+      const dx = x - lt.x;
+      const dy = y - lt.y;
+      if (dt > 0 && dt < 320 && (dx*dx + dy*dy) < 18*18){
+        // treat as double tap
+        if (target === 'wave') resetWaveZoom();
+        else resetSpecZoom();
+        lt.t = 0;
+      } else {
+        lt.t = now; lt.x = x; lt.y = y;
+      }
+    }
+
     pointers.delete(ev.pointerId);
     if (pointers.size < 2){
       gesture = null;

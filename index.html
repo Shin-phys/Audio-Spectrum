@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>マイク入力 波形＋音響スペクトル</title>
+  <title>マイク入力 波形＋音響スペクトル（修正版）</title>
   <style>
     :root{
       --bg:#ffffff; --fg:#111111; --muted:#666;
@@ -170,7 +170,6 @@
 </head>
 <body>
 <div class="app" id="app" data-theme="light">
-  <!-- TOP BAR -->
   <div class="topbar">
     <div class="group desktopOnly">
       <button id="btnStart" class="primary">Start</button>
@@ -202,28 +201,27 @@
 
   <div class="content">
     <div id="dual" class="dual row">
-      <!-- WAVE -->
       <section id="panelWave" class="panel">
         <div class="panelHeader">
           <h2>波形</h2>
           <div class="controls">
             <div class="controlRow mobileOnly">
-  <button id="btnStartWave" class="primary">Start</button>
-  <button id="btnPauseWave">Pause</button>
-  <button id="btnResetWave" class="danger">Reset</button>
-</div>
+              <button id="btnStartWave" class="primary">Start</button>
+              <button id="btnPauseWave">Pause</button>
+              <button id="btnResetWave" class="danger">Reset</button>
+            </div>
             
             <div class="controlRow">
               <label for="waveWinRange">波形時間窓（N秒）</label>
               <input id="waveWinRange" type="range" min="0.05" max="1.0" step="0.01" value="1.0" />
               <input id="waveWinNum" type="number" min="0.05" max="1.0" step="0.01" value="1.0" style="width:86px" />
             </div>
-                        <div class="controlRow">
+            <div class="controlRow">
               <label for="waveGainRange">波形 縦軸倍率</label>
               <input id="waveGainRange" type="range" min="0.1" max="20" step="0.1" value="1.0" />
               <input id="waveGainNum" type="number" min="0.1" max="20" step="0.1" value="1.0" style="width:86px" />
             </div>
-<div class="controlRow">
+            <div class="controlRow">
               <button id="btnWaveABClear">A/B解除</button>
               <button id="btnWaveCSV" disabled>CSV</button>
             </div>
@@ -244,12 +242,10 @@
         </div>
       </section>
 
-      <!-- SPECTRUM -->
       <section id="panelSpec" class="panel">
         <div class="panelHeader">
           <h2>音響スペクトル</h2>
           <div class="controls" id="specControls">
-            <!-- 1st row (short, aligned) -->
             <div class="controlRow">
               <label for="fftSel">FFTサイズ</label>
               <select id="fftSel">
@@ -263,7 +259,6 @@
               <button id="btnSpecCSV" disabled>CSV</button>
             </div>
 
-            <!-- 2nd row (range) -->
             <div class="controlRow">
               <label>スペクトル周波数　最小:</label>
               <select id="minPreset">
@@ -298,7 +293,6 @@
       </section>
     </div>
 
-    <!-- Explanation / status below ALL graphs -->
     <div class="status">
       <div class="small" id="statusLine">
         <b>注意：</b>このアプリは <b>HTTPS</b> または <b>localhost</b> 上でのみマイクが使えます。マイク許可を拒否した場合は取得できません。
@@ -495,18 +489,24 @@
 
 
 
-  // ---------- Canvas Setup ----------
+  // ---------- Canvas Setup (High DPI fix) ----------
   function resizeCanvases(){
-    // match CSS size to internal resolution for crisp rendering
-    const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+    // dpr is used for physical size, but CSS size remains logical
+    const dpr = Math.max(1, Math.min(3.0, window.devicePixelRatio || 1));
     for (const [wrap, cv, ov] of [[wrapWave, cvWave, ovWave],[wrapSpec, cvSpec, ovSpec]]){
       const rect = wrap.getBoundingClientRect();
       const w = Math.max(320, Math.floor(rect.width));
       const h = Math.max(220, Math.floor(rect.height));
+      
+      // Set physical size
       cv.width = Math.floor(w * dpr);
       cv.height = Math.floor(h * dpr);
+      
+      // Set CSS size (logical)
       cv.style.width = w+'px';
       cv.style.height = h+'px';
+      
+      // Overlay matches
       ov.width = cv.width;
       ov.height = cv.height;
       ov.style.width = cv.style.width;
@@ -865,7 +865,8 @@
       // Pauseに入る瞬間の波形縦軸倍率を固定
       waveGainHold = waveGain;
       setAppState(State.PAUSED);
-      cancelAnimationFrame(rafId); rafId = 0;
+      cancelAnimationFrame(rafId);
+      rafId = 0;
       drawOnce();
     } else if (appState === State.PAUSED){
       // Resume: keep audio running, resume draw, but per 案1 auto-clear zoom
@@ -876,294 +877,198 @@
 
   async function hardResetAudio(){
     // stop draw
-    cancelAnimationFrame(rafId); rafId = 0;
-
+    cancelAnimationFrame(rafId);
+    rafId = 0;
     // stop tracks
     if (mediaStream){
       for (const tr of mediaStream.getTracks()) tr.stop();
     }
     mediaStream = null;
-
     // disconnect nodes
-    try{ sourceNode?.disconnect(); }catch{}
-    try{ analyser?.disconnect(); }catch{}
-    try{ workletNode?.disconnect(); }catch{}
-    sourceNode = null; analyser = null; workletNode = null;
-
+    try{
+      sourceNode?.disconnect();
+    }catch{}
+    try{
+      analyser?.disconnect();
+    }catch{}
+    try{
+      workletNode?.disconnect();
+    }catch{}
+    sourceNode = null;
+    analyser = null;
+    workletNode = null;
     // close context
     if (audioCtx){
-      try{ await audioCtx.close(); }catch{}
+      try{
+        await audioCtx.close();
+      }catch{}
     }
     audioCtx = null;
 
     // clear buffers
-    ring = null; ringLen = 0; ringWrite = 0; ringCount = 0;
-    snapWave = null; snapSpec = null; snapSpecMeta = null;
+    ring = null;
+    ringLen = 0;
+    ringWrite = 0;
+    ringCount = 0;
+    snapWave = null;
+    snapSpec = null;
+    snapSpecMeta = null;
 
     // clear UI state
     resetWaveZoom();
     resetSpecZoom();
     clearAllCursorsAB();
     updateDeltas();
-
     drawOnce();
   }
 
   async function resetAll(){
     await hardResetAudio();
-    // reset display gains
-    waveGain = 1.0;
-    waveGainHold = 1.0;
-    if (typeof waveGainRange !== 'undefined'){
-      waveGainRange.value = '1.0';
-      waveGainNum.value = '1.0';
-    }
     setAppState(State.STOPPED);
-    document.getElementById('statusLine').innerHTML =
-      '<b>注意：</b>このアプリは <b>HTTPS</b> または <b>localhost</b> 上でのみマイクが使えます。マイク許可を拒否した場合は取得できません。';
+    document.getElementById('statusLine').textContent = "";
   }
 
   btnStart.addEventListener('click', start);
   btnPause.addEventListener('click', pauseToggle);
   btnReset.addEventListener('click', resetAll);
-  // mobile: same handlers
-  if (btnStartWave) btnStartWave.addEventListener('click', start);
-  if (btnPauseWave) btnPauseWave.addEventListener('click', pauseToggle);
-  if (btnResetWave) btnResetWave.addEventListener('click', resetAll);
-  if (btnStartSpec) btnStartSpec.addEventListener('click', start);
-  if (btnPauseSpec) btnPauseSpec.addEventListener('click', pauseToggle);
-  if (btnResetSpec) btnResetSpec.addEventListener('click', resetAll);
 
-  // ---------- CSV ----------
-  function downloadCSVWave(){
-    if (appState !== State.PAUSED) return;
-    const data = getWaveDisplayData(); // from snapshot
-    if (!data) return;
-
-    const {samples, t0ms, dtms, x0ms, x1ms} = data;
-    const lines = [];
-    lines.push(`# kind: waveform`);
-    lines.push(`# sampleRate: ${sampleRate}`);
-    lines.push(`# windowSec: ${waveWindowSec}`);
-    lines.push(`# zoomX_ms: ${x0ms.toFixed(3)}..${x1ms.toFixed(3)}`);
-    lines.push(`# zoomY_amp: ${waveZoom.active ? `${waveZoom.y0.toFixed(6)}..${waveZoom.y1.toFixed(6)}` : `-1..1`}`);
-    lines.push(`t_ms,amp`);
-
-    // export only visible range: map each sample time and include
-    const startIndex = Math.max(0, Math.floor(x0ms / dtms));
-    const endIndex = Math.min(samples.length-1, Math.ceil(x1ms / dtms));
-    for (let i=startIndex;i<=endIndex;i++){
-      const t = i*dtms;
-      lines.push(`${t.toFixed(6)},${samples[i].toFixed(8)}`);
-    }
-    saveText(lines.join('\n'), `waveform_${nowTs()}.csv`);
-  }
-
-  function downloadCSVSpec(){
-    if (appState !== State.PAUSED) return;
-    const spec = getSpectrumDisplayData();
-    if (!spec) return;
-
-    const lines = [];
-    const minHz = parseFloat(minHzIn.value);
-    const maxHz = parseFloat(maxHzIn.value);
-    lines.push(`# kind: spectrum`);
-    lines.push(`# sampleRate: ${sampleRate}`);
-    lines.push(`# fftSize: ${fftSize}`);
-    lines.push(`# freqRangeHz: ${minHz}..${maxHz}`);
-    lines.push(`# yMode: ${yMode}`);
-    lines.push(`# zoomX_Hz: ${spec.x0.toFixed(3)}..${spec.x1.toFixed(3)}`);
-    lines.push(`f_hz,y`);
-
-    const {binHz, yArr, i0, i1} = spec;
-    for (let i=i0;i<=i1;i++){
-      const f = i*binHz;
-      const y = yArr[i];
-      lines.push(`${f.toFixed(6)},${yMode==='norm'?y.toFixed(6):y.toFixed(6)}`);
-    }
-    saveText(lines.join('\n'), `spectrum_${nowTs()}.csv`);
-  }
-
-  function saveText(text, filename){
-    const blob = new Blob([text], {type:'text/csv;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  btnWaveCSV.addEventListener('click', downloadCSVWave);
-  btnSpecCSV.addEventListener('click', downloadCSVSpec);
-
-  // ---------- A/B clear ----------
-  function clearAB(which){
-    if (which === 'wave'){
-      ABWave.A = ABWave.B = null;
-      cursorWave.active = false;
-      bubbleWave.style.display = 'none';
-    } else {
-      ABSpec.A = ABSpec.B = null;
-      cursorSpec.active = false;
-      bubbleSpec.style.display = 'none';
-    }
-    updateDeltas();
-    drawOnce();
-  }
-  btnWaveABClear.addEventListener('click', () => clearAB('wave'));
-  btnSpecABClear.addEventListener('click', () => clearAB('spec'));
-
-  // Esc clears cursor + AB both
-  function escClear(){
-    clearAllCursorsAB();
-    drawOnce();
-  }
-
-  // ---------- Keyboard shortcuts ----------
+  // mobile mirrors
+  btnStartWave.addEventListener('click', start);
+  btnPauseWave.addEventListener('click', pauseToggle);
+  btnResetWave.addEventListener('click', resetAll);
+  
+  // Shortcuts
   window.addEventListener('keydown', (e) => {
     if (isTextInputFocused()) return;
-
-    const k = e.key.toLowerCase();
-    if (k === 's'){ e.preventDefault(); if (appState === State.STOPPED) start(); }
-    else if (k === 'p'){ e.preventDefault(); if (appState !== State.STOPPED) pauseToggle(); }
-    else if (k === 'r'){ e.preventDefault(); resetAll(); }
-    else if (k === 'z'){ e.preventDefault(); setMode(mode===Mode.ZOOM ? Mode.PICK : Mode.ZOOM); }
-    else if (k === 'w'){ e.preventDefault(); setView('wave'); }
-    else if (k === 'f'){ e.preventDefault(); setView('spec'); }
-    else if (k === 'b'){ e.preventDefault(); setView('both'); }
-    else if (k === 'v'){ e.preventDefault(); if (appState===State.PAUSED) { downloadCSVWave(); downloadCSVSpec(); } }
-    else if (k === 'escape'){ e.preventDefault(); escClear(); }
+    const key = e.key.toLowerCase();
+    if (key === 's') start();
+    if (key === 'p') pauseToggle();
+    if (key === 'r') resetAll();
+    if (key === 'z') setMode(mode===Mode.ZOOM ? Mode.PICK : Mode.ZOOM);
+    if (key === 'escape'){
+      clearAllCursorsAB();
+      if (drag.active) drag.active=false;
+      clearOverlay('wave'); clearOverlay('spec');
+      drawOnce();
+    }
+    if (key === 'v'){
+      if (appState === State.PAUSED){
+        // trigger CSV logic if active tab
+        // simple: trigger button click
+        if (view === 'wave' || view === 'both') btnWaveCSV.click();
+        else btnSpecCSV.click();
+      }
+    }
+    // Shortcuts for zoom reset
+    if (key === 'w') resetWaveZoom(), drawOnce();
+    if (key === 'f') resetSpecZoom(), drawOnce();
   });
 
-  // ---------- Drawing ----------
+
+  // ---------- Drawing Loop ----------
   function scheduleDraw(){
-    if (rafId) return;
-    const tick = () => {
-      rafId = requestAnimationFrame(tick);
-      if (appState !== State.RUNNING) return;
-      drawAll();
-    };
-    rafId = requestAnimationFrame(tick);
+    if (appState !== State.RUNNING) return;
+    rafId = requestAnimationFrame(loop);
+  }
+  function loop(){
+    draw();
+    if (appState === State.RUNNING) rafId = requestAnimationFrame(loop);
   }
 
   function drawOnce(){
-    drawAll(true);
+    requestAnimationFrame(draw);
   }
 
-  function themeColors(){
-    const isDark = (theme==='dark');
+  function getColors(theme){
+    const s = getComputedStyle(app);
     return {
-      bg: getComputedStyle(app).getPropertyValue('--bg').trim(),
-      fg: getComputedStyle(app).getPropertyValue('--fg').trim(),
-      muted: getComputedStyle(app).getPropertyValue('--muted').trim(),
-      grid: getComputedStyle(app).getPropertyValue('--grid').trim(),
-      accent: getComputedStyle(app).getPropertyValue('--accent').trim(),
-      overlay: getComputedStyle(app).getPropertyValue('--overlay').trim(),
-      overlayBorder: getComputedStyle(app).getPropertyValue('--overlayBorder').trim(),
-      border: getComputedStyle(app).getPropertyValue('--border').trim(),
+      bg: s.getPropertyValue('--bg').trim(),
+      fg: s.getPropertyValue('--fg').trim(),
+      grid: s.getPropertyValue('--grid').trim(),
+      accent: s.getPropertyValue('--accent').trim(),
+      accent2: s.getPropertyValue('--accent2').trim(),
+      muted: s.getPropertyValue('--muted').trim(),
     };
   }
 
-  function clearCanvas(ctx, w, h, bg){
+  function draw(){
+    const c = getColors(theme);
+    if (view === 'both' || view === 'wave') drawWave(c);
+    if (view === 'both' || view === 'spec') drawSpec(c);
+  }
+
+  function clearCanvas(ctx, w, h, fill){
+    // With setTransform, we are in logical coords.
+    // We can clear the whole logical area.
+    // Or just reset transform and clear physical.
     ctx.save();
     ctx.setTransform(1,0,0,1,0,0);
+    ctx.fillStyle = fill;
+    // w, h here are passed from cv.width which are physical.
+    // wait, argument w,h are passed as cv.width (physical).
+    // So clearing 0,0,w,h in identity transform works.
     ctx.clearRect(0,0,w,h);
-    ctx.fillStyle = bg;
     ctx.fillRect(0,0,w,h);
     ctx.restore();
   }
 
-  function drawAll(forceStatic=false){
-    const c = themeColors();
-    drawWave(c, forceStatic);
-    drawSpec(c, forceStatic);
-  }
-
-  // ----- Ticks (ms / Hz) -----
-  function computeTicks(min, max, targetCount=5){
-    const span = max - min;
-    if (span <= 0) return [];
-    const raw = span / (targetCount-1);
-    const step = nice125(raw);
-    // start at nice multiple
-    const start = Math.ceil(min / step) * step;
-    const ticks = [];
-    for (let v=start; v<=max+1e-9; v+=step){
-      ticks.push(v);
-    }
-    // ensure endpoints included (as labels) roughly
-    // We'll add endpoints if far
-    if (ticks.length === 0 || Math.abs(ticks[0]-min) > step*0.25) ticks.unshift(min);
-    if (Math.abs(ticks[ticks.length-1]-max) > step*0.25) ticks.push(max);
-    // de-dup
-    const uniq = [];
-    for (const t of ticks){
-      if (uniq.length===0 || Math.abs(uniq[uniq.length-1]-t) > step*0.1) uniq.push(t);
-    }
-    return uniq;
-  }
-
-  // ----- Wave data for drawing / cursor -----
-  function getWaveDisplayData(){
-    if (!snapWave) return null;
-    const samples = snapWave;
-    const dtms = 1000 / sampleRate;
-    const x0ms = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-    const x1ms = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-    const t0ms = 0;
-    return {samples, dtms, t0ms, x0ms, x1ms};
-  }
-
-  function drawWave(c, forceStatic){
+  // ---------- WAVEFORM DRAW ----------
+  function drawWave(c){
     const ctx = cvWave.getContext('2d');
-    const w = cvWave.width, h = cvWave.height;
+    // Logical dims
+    const dpr = Math.max(1, Math.min(3.0, window.devicePixelRatio || 1));
+    const w = cvWave.width / dpr;
+    const h = cvWave.height / dpr;
+    
+    // Setup logical coordinate system
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // choose data source
-    if (appState === State.RUNNING){
-      // running: draw from ring (last window)
-      // generate view samples (without copying huge if possible). We'll copy the window for simplicity.
-      snapWave = getWaveWindowFromRing();
-    } else if (appState === State.STOPPED){
-      // no data
-      snapWave = null;
-    }
-    const data = getWaveDisplayData();
+    clearCanvas(ctx, cvWave.width, cvWave.height, c.bg);
 
-
-    const gWave = (appState === State.RUNNING) ? waveGain : waveGainHold;
-    clearCanvas(ctx, w, h, c.bg);
-
-    // plot area with margins for top ticks
+    // plot area (logical pixels)
     const padL = 64, padR = 18, padT = 42, padB = 36;
     const pw = w - padL - padR;
     const ph = h - padT - padB;
 
-    // frame
-    ctx.strokeStyle = c.border;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(padL, padT, pw, ph);
+    let samples = null;
+    let valid = false;
 
-    // grid
-    ctx.strokeStyle = c.grid;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i=1;i<5;i++){
-      const y = padT + ph * (i/5);
-      ctx.moveTo(padL, y); ctx.lineTo(padL+pw, y);
+    // Data Source
+    if (appState === State.RUNNING){
+      samples = getWaveWindowFromRing();
+      valid = !!samples;
+    } else if (appState === State.PAUSED){
+      samples = snapWave;
+      valid = !!samples;
     }
+
+    // Determine Gain
+    // Running: use waveGain
+    // Paused: use waveGainHold
+    const gain = (appState === State.PAUSED) ? waveGainHold : waveGain;
+
+    // Draw Grid & Axes
+    ctx.beginPath();
+    ctx.strokeStyle = c.grid;
+    ctx.lineWidth = 1; // 1 logical px
+    ctx.strokeRect(padL, padT, pw, ph);
+    
+    // Zero line
+    const y0 = padT + ph/2;
+    ctx.beginPath();
+    ctx.moveTo(padL, y0); ctx.lineTo(padL+pw, y0);
     ctx.stroke();
 
-    // y axis range
+    // Y Axis Labels
+    // Show -1.0 to 1.0 (or -gain to +gain if we view it that way, but usually raw Amp is +/-1 range)
+    // Actually visual range is zoom-dependent.
     let yMin = -1, yMax = 1;
     if (waveZoom.active){
       yMin = Math.min(waveZoom.y0, waveZoom.y1);
       yMax = Math.max(waveZoom.y0, waveZoom.y1);
-      if (Math.abs(yMax - yMin) < 1e-9){ yMin=-1; yMax=1; }
+      if (Math.abs(yMax-yMin) < 1e-9){ yMin=-1; yMax=1; }
     }
-
+    
     // x range (ms)
     const xMin = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
     const xMax = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
@@ -1171,9 +1076,10 @@
     // ticks (top, ~5)
     const ticks = computeTicks(xMin, xMax, 5);
     ctx.fillStyle = c.fg;
-    ctx.font = `${Math.round(12*devicePixelRatio)}px system-ui, sans-serif`;
+    ctx.font = `12px system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
+
     // draw tick labels (thin)
     ctx.strokeStyle = c.grid;
     ctx.lineWidth = 1;
@@ -1181,83 +1087,107 @@
       const x = padL + (t - xMin) / (xMax - xMin) * pw;
       // tick line
       ctx.beginPath();
-      ctx.moveTo(x, padT); ctx.lineTo(x, padT+ph);
+      ctx.moveTo(x, padT);
+      ctx.lineTo(x, padT+ph);
       ctx.stroke();
-      // label
-      const label = `${t.toFixed(spanDigits(xMax-xMin))} ms`;
-      // naive overlap avoidance: skip if too close to previous
-      // We'll track last x
     }
     // actually draw labels with simple overlap culling
     let lastLabelX = -1e9;
     for (const t of ticks){
       const x = padL + (t - xMin) / (xMax - xMin) * pw;
-      if (x - lastLabelX < 70 * Math.max(1, devicePixelRatio)) continue;
+      if (x - lastLabelX < 70) continue;
       lastLabelX = x;
       const label = `${t.toFixed(spanDigits(xMax-xMin))}`;
       ctx.fillText(label, x, padT - 6);
     }
-    // axis label "ms" at far right top
+    // axis label "ms" at far right
     ctx.textAlign = 'right';
-    ctx.fillText('ms', padL+pw, padT - 6);
+    ctx.fillText('ms', w - 4, padT - 6);
 
-    // no data message
-    if (!data){
-      ctx.fillStyle = c.muted;
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
-      ctx.font = `${Math.round(14*devicePixelRatio)}px system-ui, sans-serif`;
-      ctx.fillText('Startでマイク入力を開始します', padL+pw/2, padT+ph/2);
-      drawWaveAB(ctx, c, padL, padT, pw, ph, xMin, xMax, yMin, yMax);
-      return;
+    // Y Axis Ticks (Left)
+    // Range is [yMin, yMax]. If zoom is inactive, [-1, 1].
+    // We visualize `val * gain`.
+    // Let's tick based on raw value range [yMin, yMax].
+    const yTicks = computeTicks(yMin, yMax, 4);
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = c.grid;
+    for (const v of yTicks){
+      if (v < yMin || v > yMax) continue;
+      const y = padT + (1 - (v - yMin)/(yMax - yMin)) * ph;
+      ctx.beginPath();
+      ctx.moveTo(padL, y); ctx.lineTo(padL+pw, y);
+      ctx.stroke();
+      
+      ctx.fillText(v.toFixed(2), padL - 6, y);
     }
 
-    // waveform draw: min/max per pixel
-    ctx.strokeStyle = c.accent;
-    ctx.lineWidth = 1.5 * Math.max(1, devicePixelRatio*0.6);
+    // CLIP for Wave
+    ctx.save();
     ctx.beginPath();
+    ctx.rect(padL, padT, pw, ph);
+    ctx.clip();
 
-    const {samples, dtms} = data;
-    // visible sample indices
-    const i0 = Math.max(0, Math.floor(xMin / dtms));
-    const i1 = Math.min(samples.length-1, Math.ceil(xMax / dtms));
-    const nVis = i1 - i0 + 1;
+    if (valid && samples.length > 0){
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = c.accent;
+      ctx.beginPath();
 
-    if (nVis <= 2){
-      // too short
-    } else {
-      // per x pixel, compute min/max
-      const pxCount = Math.max(1, Math.floor(pw));
-      const spp = nVis / pxCount;
-      for (let px=0; px<pxCount; px++){
-        const a = Math.floor(i0 + px*spp);
-        const b = Math.floor(i0 + (px+1)*spp);
-        let mn =  1e9, mx = -1e9;
-        const bb = Math.min(i1, Math.max(a+1, b));
-        for (let i=a; i<=bb; i++){
-          const v = clamp(samples[i] * gWave, yMin, yMax);
-          if (v<mn) mn=v;
-          if (v>mx) mx=v;
-        }
-        const x = padL + (px / (pxCount-1)) * pw;
-        const y1 = padT + (1 - (mx - yMin)/(yMax-yMin)) * ph;
-        const y2 = padT + (1 - (mn - yMin)/(yMax-yMin)) * ph;
-        ctx.moveTo(x, y1);
-        ctx.lineTo(x, y2);
+      // We map sample index to x.
+      // visible time range: [xMin/1000, xMax/1000] sec
+      // sample rate: sampleRate
+      // full buffer duration: waveWindowSec (approx) or samples.length/sampleRate
+      
+      // We only draw samples that fall into [xMin, xMax]
+      // samples array represents [0, waveWindowSec] ideally.
+      
+      const dt = 1.0 / sampleRate;
+      const startSec = xMin / 1000;
+      const endSec = xMax / 1000;
+      
+      // indices
+      let i0 = Math.floor(startSec / dt);
+      let i1 = Math.ceil(endSec / dt);
+      i0 = clamp(i0, 0, samples.length-1);
+      i1 = clamp(i1, 0, samples.length-1);
+      
+      const step = Math.max(1, Math.floor((i1-i0)/pw)); 
+
+      // optimization: if too many samples, skip
+      let moveTo = true;
+      for (let i=i0; i<=i1; i+=step){
+        const val = samples[i] * gain; // apply gain here
+        const t = i * dt; // sec
+        
+        // map t to x
+        // x = padL + (t - startSec)/(endSec - startSec) * pw
+        // map val to y
+        // y = padT + (1 - (val - yMin)/(yMax - yMin)) * ph
+        
+        const x = padL + (t - startSec)/(endSec - startSec) * pw;
+        const y = padT + (1 - (val - yMin)/(yMax - yMin)) * ph;
+        
+        if (moveTo){ ctx.moveTo(x,y); moveTo=false; }
+        else ctx.lineTo(x,y);
       }
       ctx.stroke();
     }
+    
+    ctx.restore(); // end clip
 
-    // cursor highlight + bubble (Pause only)
+    // Draw current mic level bar on right side? (Optional, skipping for clean graph)
+
+    // Cursor (Pause only)
     if (appState === State.PAUSED && cursorWave.active){
+      // ensure cursor is inside zoom
       const x = padL + (cursorWave.tms - xMin)/(xMax-xMin) * pw;
       const y = padT + (1 - (cursorWave.amp - yMin)/(yMax-yMin)) * ph;
       drawCursorPoint(ctx, c, x, y);
-
+      
       // bubble near point (DOM overlay)
       bubbleWave.style.display = 'block';
       bubbleWave.textContent = `t=${cursorWave.tms.toFixed(3)} ms, amp=${cursorWave.amp.toFixed(4)}`;
-      placeBubble(bubbleWave, wrapWave, x/cvWave.width, y/cvWave.height);
+      placeBubble(bubbleWave, wrapWave, x/w, y/h); // use logical w,h for placement calc
     } else {
       bubbleWave.style.display = 'none';
     }
@@ -1278,10 +1208,23 @@
     ctx.save();
     ctx.fillStyle = c.accent;
     ctx.strokeStyle = c.bg;
-    ctx.lineWidth = 2.5 * Math.max(1, devicePixelRatio*0.7);
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(x, y, 5 * Math.max(1, devicePixelRatio*0.6), 0, Math.PI*2);
+    ctx.arc(x, y, 5, 0, Math.PI*2);
     ctx.fill();
+    ctx.stroke();
+    
+    // crosshair
+    ctx.strokeStyle = c.accent;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    // Assuming context is clipped or we draw full? We draw full here, but outside clip.
+    // Ideally we should limit crosshair length but simple is fine.
+    // We don't have rect bounds easily here without passing them.
+    // Just draw small cross
+    ctx.moveTo(x-10, y); ctx.lineTo(x+10, y);
+    ctx.moveTo(x, y-10); ctx.lineTo(x, y+10);
     ctx.stroke();
     ctx.restore();
   }
@@ -1289,53 +1232,75 @@
   function drawWaveAB(ctx, c, padL, padT, pw, ph, xMin, xMax, yMin, yMax){
     ctx.save();
     ctx.strokeStyle = c.accent2;
-    ctx.lineWidth = 1.5 * Math.max(1, devicePixelRatio*0.6);
+    ctx.lineWidth = 1.5;
 
     function drawLine(pt){
+      // pt {tms, amp}
       const x = padL + (pt.tms - xMin)/(xMax-xMin) * pw;
+      // vertical line
       ctx.beginPath();
-      ctx.moveTo(x, padT);
-      ctx.lineTo(x, padT+ph);
+      ctx.moveTo(x, padT); ctx.lineTo(x, padT+ph);
       ctx.stroke();
-
+      // point
       const y = padT + (1 - (pt.amp - yMin)/(yMax-yMin)) * ph;
       ctx.fillStyle = c.accent2;
       ctx.beginPath();
-      ctx.arc(x, y, 4.5 * Math.max(1, devicePixelRatio*0.6), 0, Math.PI*2);
+      ctx.arc(x, y, 4.5, 0, Math.PI*2);
       ctx.fill();
     }
 
     if (ABWave.A) drawLine(ABWave.A);
     if (ABWave.B) drawLine(ABWave.B);
+
+    // Range shade
+    if (ABWave.A && ABWave.B){
+      const xA = padL + (ABWave.A.tms - xMin)/(xMax-xMin) * pw;
+      const xB = padL + (ABWave.B.tms - xMin)/(xMax-xMin) * pw;
+      ctx.fillStyle = c.accent2;
+      ctx.globalAlpha = 0.1;
+      ctx.fillRect(Math.min(xA,xB), padT, Math.abs(xA-xB), ph);
+    }
     ctx.restore();
   }
 
-  // ----- Spectrum data for drawing / cursor -----
+  function computeTicks(min, max, count){
+    if (max <= min) return [];
+    const range = max - min;
+    const rough = range / count;
+    const step = nice125(rough);
+    const start = Math.ceil(min / step) * step;
+    const res = [];
+    for (let v=start; v<=max; v+=step){
+      res.push(v);
+    }
+    return res;
+  }
+
+  // ---------- SPECTRUM DRAW ----------
   function getSpectrumDisplayData(){
-    const nyq = sampleRate/2;
-    const minHz = clamp(parseFloat(minHzIn.value), 0, nyq);
-    const maxHz = clamp(parseFloat(maxHzIn.value), minHz+1, nyq);
-
-    const binCount = analyser ? analyser.frequencyBinCount : (snapSpec ? snapSpec.length : 0);
-    if (!binCount) return null;
-
-    const binHz = sampleRate / fftSize; // since binCount = fftSize/2
-    // y array source
+    // returns { binHz, yArr (Float32Array), i0, i1 (indices), minHz, maxHz (domain) }
+    // handles Running/Paused distinction
+    
+    // 1. Get raw data array
     let yArr = null;
-    if (appState === State.RUNNING && analyser){
+    const binHz = sampleRate / fftSize;
+    const minHz = parseFloat(minHzIn.value);
+    const maxHz = parseFloat(maxHzIn.value);
+
+    if (appState === State.RUNNING){
+      if (!analyser) return null;
       if (yMode === 'db'){
         analyser.getFloatFrequencyData(freqBins);
         yArr = freqBins;
       } else {
         analyser.getByteFrequencyData(freqBinsByte);
-        // map to 0..100
-        // We won't allocate every frame in place; reuse a temp buffer
-        if (!getSpectrumDisplayData._tmp || getSpectrumDisplayData._tmp.length !== freqBinsByte.length){
-          getSpectrumDisplayData._tmp = new Float32Array(freqBinsByte.length);
-        }
-        const tmp = getSpectrumDisplayData._tmp;
-        for (let i=0;i<freqBinsByte.length;i++) tmp[i] = (freqBinsByte[i]/255)*100;
-        yArr = tmp;
+        // map to float 0..100 temporarily for display
+        // we can reuse a shared buffer or just map on the fly. 
+        // Mapping on fly in draw loop is better than allocating per frame.
+        // But for "getSpectrumDisplayData" to return a clean array, we might need a buffer.
+        // Let's use a static temp buffer if possible, or just return the byte array and a flag.
+        // For simplicity, let's allow returning Uint8Array and handle scale in draw.
+        yArr = freqBinsByte; 
       }
     } else if (appState === State.PAUSED && snapSpec){
       yArr = snapSpec;
@@ -1346,7 +1311,7 @@
     // zoom x
     const x0 = specZoom.active ? specZoom.x0 : minHz;
     const x1 = specZoom.active ? specZoom.x1 : maxHz;
-
+    
     let i0 = Math.floor(x0 / binHz);
     let i1 = Math.ceil(x1 / binHz);
     i0 = clamp(i0, 0, yArr.length-1);
@@ -1358,7 +1323,11 @@
 
   function drawSpec(c, forceStatic){
     const ctx = cvSpec.getContext('2d');
-    const w = cvSpec.width, h = cvSpec.height;
+    const dpr = Math.max(1, Math.min(3.0, window.devicePixelRatio || 1));
+    const w = cvSpec.width / dpr;
+    const h = cvSpec.height / dpr;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // In PAUSE, spectrum must be fixed snapshot (no change by click)
     if (appState === State.PAUSED){
@@ -1371,255 +1340,255 @@
     }
 
     const data = getSpectrumDisplayData();
-
-    clearCanvas(ctx, w, h, c.bg);
+    clearCanvas(ctx, cvSpec.width, cvSpec.height, c.bg);
 
     // plot area (top reserved for ticks + peak labels)
+    // using consistent logical padding
     const padL = 70, padR = 18, padT = 58, padB = 36;
     const pw = w - padL - padR;
     const ph = h - padT - padB;
 
-    ctx.strokeStyle = c.border;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(padL, padT, pw, ph);
-
-    // grid
-    ctx.strokeStyle = c.grid;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i=1;i<5;i++){
-      const y = padT + ph * (i/5);
-      ctx.moveTo(padL, y); ctx.lineTo(padL+pw, y);
-    }
-    ctx.stroke();
-
-    // no data
-    if (!data){
-      ctx.fillStyle = c.muted;
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
-      ctx.font = `${Math.round(14*devicePixelRatio)}px system-ui, sans-serif`;
-      ctx.fillText('Startでマイク入力を開始します', padL+pw/2, padT+ph/2);
-      drawSpecAB(ctx, c, padL, padT, pw, ph, 0, 1, 0, 1);
-      return;
-    }
-
-    const {binHz, yArr, i0, i1, x0, x1} = data;
-
-    // y range
-    let yMin, yMax;
-    if (yMode === 'norm'){
-      yMin = -5; yMax = 100;
-    } else {
-      // typical analyser float range -140..0 (browser dependent). We'll clamp.
-      yMin = -140; yMax = 0;
-    }
-
-    // ticks for Hz
-    const ticks = computeTicks(x0, x1, 5);
-
-    // peak per tick segment
-    specPeaks = [];
-    for (let ti=0; ti<ticks.length; ti++){
-      const tHz = ticks[ti];
-      let next = (ti < ticks.length-1) ? ticks[ti+1] : x1;
-      let a = Math.floor(tHz / binHz);
-      let b = Math.floor(next / binHz);
-      a = clamp(a, i0, i1);
-      b = clamp(b, i0, i1);
-      if (b < a) [a,b] = [b,a];
-      let peak = -1e9;
-      for (let i=a;i<=b;i++){
-        peak = Math.max(peak, yArr[i]);
+    if (data){
+      const {binHz, yArr, i0, i1, x0, x1} = data;
+      // y range
+      // db: usually -100 to 0 or similar. Let's fix -100 to 0 for consistency or auto?
+      // norm: 0 to 100
+      let yMin = 0, yMax = 100;
+      if (yMode === 'db'){
+        yMin = -120; yMax = -10; // typical noise floor to peak
       }
-      if (!Number.isFinite(peak)) peak = 0;
-      specPeaks.push(peak);
-    }
 
-    // draw vertical grid lines + tick labels top + PEAK just below
-    ctx.font = `${Math.round(12*devicePixelRatio)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle = c.fg;
-    ctx.strokeStyle = c.grid;
-    ctx.lineWidth = 1;
-
-    // overlap culling
-    let lastX = -1e9;
-    const minDx = 70 * Math.max(1, devicePixelRatio);
-
-    for (let ti=0; ti<ticks.length; ti++){
-      const tHz = ticks[ti];
-      const x = padL + (tHz - x0)/(x1-x0) * pw;
-
-      // grid line
+      // 1. Draw Axis / Grid
       ctx.beginPath();
-      ctx.moveTo(x, padT); ctx.lineTo(x, padT+ph);
-      ctx.stroke();
+      ctx.strokeStyle = c.grid;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(padL, padT, pw, ph);
 
-      if (x - lastX < minDx) continue;
-      lastX = x;
-
-      // tick label (upper)
-      const lbl = formatHz(tHz);
-      ctx.fillText(lbl, x, padT - 26);
-
-      // peak label just below tick label
-      ctx.textBaseline = 'top';
-      const pk = specPeaks[ti];
-      const pkTxt = (yMode==='norm') ? `${pk.toFixed(0)}%` : `${pk.toFixed(1)} dB`;
+      // Y Axis Ticks
+      const yTicks = computeTicks(yMin, yMax, 5);
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.font = '12px system-ui, sans-serif';
       ctx.fillStyle = c.muted;
-      ctx.fillText(pkTxt, x, padT - 22);
-      ctx.fillStyle = c.fg;
-      ctx.textBaseline = 'bottom';
-    }
-    // axis hint
-    ctx.textAlign = 'right';
-    ctx.fillText('Hz', padL+pw, padT - 26);
-
-    // draw spectrum
-    ctx.strokeStyle = c.accent;
-    ctx.lineWidth = 1.5 * Math.max(1, devicePixelRatio*0.6);
-
-    const nVis = i1 - i0 + 1;
-    const pxCount = Math.max(1, Math.floor(pw));
-    const spp = nVis / pxCount;
-
-    if (appState === State.PAUSED && spp <= 2.2){
-      // ズーム後・Pause中：滑らかな折れ線で描画（荒さ対策）
-      ctx.beginPath();
-      for (let i=i0;i<=i1;i++){
-        const x = padL + ((i - i0) / Math.max(1, nVis-1)) * pw;
-        const v = yArr[i];
-        const y = padT + (1 - (v - yMin)/(yMax-yMin)) * ph;
-        if (i === i0) ctx.moveTo(x,y);
-        else ctx.lineTo(x,y);
+      for (const v of yTicks){
+        const y = padT + (1 - (v - yMin)/(yMax - yMin)) * ph;
+        ctx.beginPath();
+        ctx.moveTo(padL, y); ctx.lineTo(padL+pw, y);
+        ctx.stroke();
+        ctx.fillText(v, padL - 6, y);
       }
-      ctx.stroke();
-    } else {
-      // 密な領域：min/max を縦線で描画（エイリアシング抑制）
+
+      // X Axis Ticks (Hz)
+      // computeTicks might not be best for log-ish frequency, but we are linear X.
+      const ticks = computeTicks(x0, x1, 6);
+      specPeaks = []; // reset peaks for these ticks
+
+      // 2. Draw Spectrum Bars (Clipped!)
+      ctx.save();
       ctx.beginPath();
-      const spp2 = Math.max(1, spp);
-      for (let px=0; px<pxCount; px++){
-        const a = Math.floor(i0 + px*spp2);
-        const b = Math.floor(i0 + (px+1)*spp2);
-        let mn =  1e9, mx = -1e9;
-        const bb = Math.min(i1, Math.max(a+1, b));
-        for (let i=a; i<=bb; i++){
-          const v = yArr[i];
-          if (v < mn) mn = v;
-          if (v > mx) mx = v;
+      ctx.rect(padL, padT, pw, ph);
+      ctx.clip(); // Fix for "Blue fill" issue
+
+      ctx.fillStyle = c.accent;
+      const barWidth = Math.max(1, (pw / (i1 - i0 + 1)) - 0.5); // slight gap
+
+      for (let i=i0; i<=i1; i++){
+        let val = yArr[i];
+        // if using byte array, normalize to 0..100 for drawing if mode is norm
+        // data.yArr for norm is 0..255 (Uint8) or 0..100 (snapSpec float)
+        // Let's normalize data reading:
+        if (yMode === 'norm' && yArr instanceof Uint8Array){
+          val = (val / 255) * 100;
         }
-        const x = padL + (px / Math.max(1, (pxCount-1))) * pw;
-        const y1p = padT + (1 - (mx - yMin)/(yMax-yMin)) * ph;
-        const y2p = padT + (1 - (mn - yMin)/(yMax-yMin)) * ph;
-        ctx.moveTo(x, y1p);
-        ctx.lineTo(x, y2p);
+
+        const hz = i * binHz;
+        // x pos
+        const x = padL + (hz - x0)/(x1 - x0) * pw;
+        const y = padT + (1 - (val - yMin)/(yMax - yMin)) * ph;
+        const hBar = (padT + ph) - y;
+
+        ctx.fillRect(x, y, barWidth, hBar);
       }
-      ctx.stroke();
+      ctx.restore();
+
+      // 3. Peak Finding (for ticks)
+      // Find max value in +/- range of each tick
+      // span covered by one tick label approx?
+      const rangeHz = (x1 - x0);
+      const searchW = rangeHz / 20; // heuristic
+      
+      for (const tHz of ticks){
+        // find peak in [tHz - searchW/2, tHz + searchW/2]
+        const si0 = Math.floor((tHz - searchW/2)/binHz);
+        const si1 = Math.ceil((tHz + searchW/2)/binHz);
+        let peak = -9999;
+        const a = clamp(si0, 0, yArr.length-1);
+        const b = clamp(si1, 0, yArr.length-1);
+        for (let i=a;i<=b;i++){
+           let val = yArr[i];
+           if (yMode === 'norm' && yArr instanceof Uint8Array) val = (val/255)*100;
+           peak = Math.max(peak, val);
+        }
+        if (!Number.isFinite(peak)) peak = 0;
+        specPeaks.push(peak);
+      }
+
+      // draw vertical grid lines + tick labels top + PEAK just below
+      ctx.font = `12px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = c.fg;
+      ctx.strokeStyle = c.grid;
+      ctx.lineWidth = 1;
+
+      // overlap culling
+      let lastX = -1e9;
+      const minDx = 70;
+      for (let ti=0; ti<ticks.length; ti++){
+        const tHz = ticks[ti];
+        const x = padL + (tHz - x0)/(x1-x0) * pw;
+        
+        // grid line
+        ctx.beginPath();
+        ctx.moveTo(x, padT); ctx.lineTo(x, padT+ph);
+        ctx.stroke();
+
+        if (x - lastX < minDx) continue;
+        lastX = x;
+
+        // tick label (upper)
+        const lbl = formatHz(tHz);
+        ctx.fillText(lbl, x, padT - 26);
+
+        // peak label just below tick label
+        ctx.textBaseline = 'top';
+        const pk = specPeaks[ti];
+        const pkTxt = (yMode==='norm') ? `${pk.toFixed(0)}%` : `${pk.toFixed(1)} dB`;
+        ctx.fillStyle = c.muted;
+        ctx.fillText(pkTxt, x, padT - 22);
+        ctx.fillStyle = c.fg;
+        ctx.textBaseline = 'bottom';
+      }
+      
+      // axis hint
+      ctx.textAlign = 'right';
+      ctx.fillText('Hz', w - 4, padT - 26);
+
+      // Cursor
+      let yMinVal = yMin, yMaxVal = yMax; // for cursor mapping
+      if (appState === State.PAUSED && cursorSpec.active){
+        const x = padL + (cursorSpec.hz - x0)/(x1-x0) * pw;
+        const y = padT + (1 - (cursorSpec.val - yMinVal)/(yMaxVal-yMinVal)) * ph;
+        drawCursorPoint(ctx, c, x, y);
+
+        bubbleSpec.style.display = 'block';
+        bubbleSpec.textContent = `f=${cursorSpec.hz.toFixed(1)} Hz, y=${(yMode==='norm'?cursorSpec.val.toFixed(2)+'%':cursorSpec.val.toFixed(2)+' dB')}`;
+        placeBubble(bubbleSpec, wrapSpec, x/w, y/h);
+      } else {
+        bubbleSpec.style.display = 'none';
+      }
+
+      // A/B
+      drawSpecAB(ctx, c, padL, padT, pw, ph, x0, x1, yMinVal, yMaxVal);
     }
-
-    // cursor highlight + bubble (Pause only)
-    if (appState === State.PAUSED && cursorSpec.active){
-      const x = padL + (cursorSpec.hz - x0)/(x1-x0) * pw;
-      const y = padT + (1 - (cursorSpec.val - yMin)/(yMax-yMin)) * ph;
-      drawCursorPoint(ctx, c, x, y);
-
-      bubbleSpec.style.display = 'block';
-      bubbleSpec.textContent = `f=${cursorSpec.hz.toFixed(1)} Hz, y=${(yMode==='norm'?cursorSpec.val.toFixed(2)+'%':cursorSpec.val.toFixed(2)+' dB')}`;
-      placeBubble(bubbleSpec, wrapSpec, x/cvSpec.width, y/cvSpec.height);
-    } else {
-      bubbleSpec.style.display = 'none';
-    }
-
-    // A/B
-    drawSpecAB(ctx, c, padL, padT, pw, ph, x0, x1, yMin, yMax);
   }
 
   function drawSpecAB(ctx, c, padL, padT, pw, ph, xMin, xMax, yMin, yMax){
     ctx.save();
     ctx.strokeStyle = c.accent2;
-    ctx.lineWidth = 1.5 * Math.max(1, devicePixelRatio*0.6);
+    ctx.lineWidth = 1.5;
 
     function drawLine(pt){
       const x = padL + (pt.hz - xMin)/(xMax-xMin) * pw;
       ctx.beginPath();
-      ctx.moveTo(x, padT);
-      ctx.lineTo(x, padT+ph);
+      ctx.moveTo(x, padT); ctx.lineTo(x, padT+ph);
       ctx.stroke();
-
       const y = padT + (1 - (pt.val - yMin)/(yMax-yMin)) * ph;
       ctx.fillStyle = c.accent2;
       ctx.beginPath();
-      ctx.arc(x, y, 4.5 * Math.max(1, devicePixelRatio*0.6), 0, Math.PI*2);
+      ctx.arc(x, y, 4.5, 0, Math.PI*2);
       ctx.fill();
     }
-
     if (ABSpec.A) drawLine(ABSpec.A);
     if (ABSpec.B) drawLine(ABSpec.B);
 
+    if (ABSpec.A && ABSpec.B){
+       const xA = padL + (ABSpec.A.hz - xMin)/(xMax-xMin) * pw;
+       const xB = padL + (ABSpec.B.hz - xMin)/(xMax-xMin) * pw;
+       ctx.fillStyle = c.accent2;
+       ctx.globalAlpha = 0.1;
+       ctx.fillRect(Math.min(xA,xB), padT, Math.abs(xA-xB), ph);
+    }
     ctx.restore();
   }
 
-  // ---------- Bubble placement ----------
-  function placeBubble(bubble, wrap, nx, ny){
+  function placeBubble(el, wrap, rx, ry){
+    // rx, ry in 0..1
     const rect = wrap.getBoundingClientRect();
-    const x = nx * rect.width;
-    const y = ny * rect.height;
-    bubble.style.left = `${x}px`;
-    bubble.style.top = `${y}px`;
+    // bubble is absolute in wrap (relative)
+    // Actually wrapWave is relative, bubble is absolute.
+    const bx = rx * rect.width;
+    const by = ry * rect.height;
+    
+    el.style.left = bx + 'px';
+    el.style.top = by + 'px';
+    
+    // adjust side to not overflow
+    const bRect = el.getBoundingClientRect();
+    if (bx + bRect.width > rect.width) el.style.transform = `translate(calc(-100% - 10px), -10px)`;
+    else el.style.transform = `translate(10px, -10px)`;
   }
 
-  // ---------- Overlay rectangle drawing ----------
-  function clearOverlay(which){
-    const ov = (which==='wave') ? ovWave : ovSpec;
-    const ctx = ov.getContext('2d');
-    ctx.clearRect(0,0,ov.width, ov.height);
+
+  // ---------- Interaction (Pointer Events) ----------
+  // Unified pointer handling for Mouse/Touch
+  // Using Pointer Events for simplicity
+
+  function canvasPosFromEvent(ev, cv){
+    // Returns LOGICAL coordinates
+    const rect = cv.getBoundingClientRect();
+    return {
+      x: ev.clientX - rect.left,
+      y: ev.clientY - rect.top
+    };
   }
-  function drawOverlayRect(which, x0,y0,x1,y1){
-    const ov = (which==='wave') ? ovWave : ovSpec;
-    const ctx = ov.getContext('2d');
-    const c = themeColors();
-    ctx.clearRect(0,0,ov.width, ov.height);
-
-    const left = Math.min(x0,x1), top = Math.min(y0,y1);
-    const w = Math.abs(x1-x0), h = Math.abs(y1-y0);
-
-    ctx.fillStyle = c.overlay;
-    ctx.strokeStyle = c.overlayBorder;
-    ctx.lineWidth = 2 * Math.max(1, devicePixelRatio*0.7);
-    ctx.fillRect(left, top, w, h);
-    ctx.strokeRect(left, top, w, h);
-  }
-
-  // ---------- Cursor + pick logic ----------
+  
+  // Pick logic - uses Logical coords now
   function pickWaveAtCanvas(px, py){
-    if (!snapWave) return null;
-    const gPick = (appState === State.RUNNING) ? waveGain : waveGainHold;
-    const w = cvWave.width, h = cvWave.height;
-    // match plot area numbers in drawWave
+    // px, py are logical
+    const w = cvWave.width / (window.devicePixelRatio||1); // logical w
+    const h = cvWave.height / (window.devicePixelRatio||1);
+    // actually, we should store logical w,h or just use offsetWidth/Height
+    // offsetWidth is integer, but getBoundingClientRect().width can be float.
+    // Let's rely on consistent pad constants.
+    
     const padL = 64, padR = 18, padT = 42, padB = 36;
-    const pw = w - padL - padR;
-    const ph = h - padT - padB;
+    const pw = (cvWave.width / (window.devicePixelRatio||1)) - padL - padR;
+    const ph = (cvWave.height / (window.devicePixelRatio||1)) - padT - padB;
+    
     if (px < padL || px > padL+pw || py < padT || py > padT+ph) return null;
-
-    const xMin = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-    const xMax = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
+    
     let yMin = -1, yMax = 1;
     if (waveZoom.active){
       yMin = Math.min(waveZoom.y0, waveZoom.y1);
       yMax = Math.max(waveZoom.y0, waveZoom.y1);
       if (Math.abs(yMax-yMin) < 1e-9){ yMin=-1; yMax=1; }
     }
+    
+    const xMin = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
+    const xMax = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
 
     const tms = xMin + ((px - padL)/pw) * (xMax - xMin);
-    const ampApprox = yMin + (1 - (py - padT)/ph) * (yMax - yMin);
-
+    
     // sample lookup from snapWave (0..windowSec) ignoring zoom offset
     const dtms = 1000 / sampleRate;
     const idx = clamp(Math.round(tms / dtms), 0, snapWave.length-1);
-    const amp = clamp(snapWave[idx] * gPick, yMin, yMax);
-
+    
+    // Gain?
+    // User sees gained value. 
+    const gain = waveGainHold;
+    const amp = clamp(snapWave[idx] * gain, yMin, yMax);
+    
     return {tms, amp, px, py};
   }
 
@@ -1627,62 +1596,79 @@
     const data = getSpectrumDisplayData();
     if (!data) return null;
     const {binHz, yArr, x0, x1, i0, i1} = data;
-
-    const w = cvSpec.width, h = cvSpec.height;
+    const dpr = window.devicePixelRatio || 1;
+    const w = cvSpec.width / dpr; 
+    const h = cvSpec.height / dpr;
+    
     const padL = 70, padR = 18, padT = 58, padB = 36;
     const pw = w - padL - padR;
     const ph = h - padT - padB;
+
     if (px < padL || px > padL+pw || py < padT || py > padT+ph) return null;
 
     const hz = x0 + ((px - padL)/pw) * (x1 - x0);
     const idx = clamp(Math.round(hz / binHz), i0, i1);
-    const val = yArr[idx];
-    return {hz: idx*binHz, val, px, py};
+    
+    let val = yArr[idx];
+    if (yMode === 'norm' && yArr instanceof Uint8Array) val = (val/255)*100;
+    
+    return {hz, val, px, py};
   }
-
+  
   function updateDeltas(){
     if (ABWave.A && ABWave.B){
-      const dt = ABWave.B.tms - ABWave.A.tms;
-      const da = ABWave.B.amp - ABWave.A.amp;
-      deltaWave.textContent = `Δ: Δt=${dt.toFixed(3)} ms, Δamp=${da.toFixed(4)}`;
+      const dt = Math.abs(ABWave.B.tms - ABWave.A.tms);
+      const da = Math.abs(ABWave.B.amp - ABWave.A.amp); // shown as raw diff
+      deltaWave.textContent = `Δ: ${dt.toFixed(2)}ms, ${da.toFixed(3)}`;
+      btnWaveCSV.disabled = false; // enable CSV if A-B selected? Original code allowed CSV only if paused.
     } else {
-      deltaWave.textContent = 'Δ: —';
+      deltaWave.textContent = `Δ: —`;
     }
+
     if (ABSpec.A && ABSpec.B){
-      const df = ABSpec.B.hz - ABSpec.A.hz;
-      const dy = ABSpec.B.val - ABSpec.A.val;
+      const df = Math.abs(ABSpec.B.hz - ABSpec.A.hz);
+      const dv = Math.abs(ABSpec.B.val - ABSpec.A.val);
       const unit = (yMode==='norm') ? '%' : 'dB';
-      deltaSpec.textContent = `Δ: Δf=${df.toFixed(1)} Hz, Δy=${dy.toFixed(2)} ${unit}`;
+      deltaSpec.textContent = `Δ: ${df.toFixed(1)}Hz, ${dv.toFixed(2)}${unit}`;
     } else {
-      deltaSpec.textContent = 'Δ: —';
+      deltaSpec.textContent = `Δ: —`;
     }
   }
 
-  function cycleAB(which, pt){
-    if (which==='wave'){
-      if (!ABWave.A || (ABWave.A && ABWave.B)){
-        ABWave.A = {tms: pt.tms, amp: pt.amp};
-        ABWave.B = null;
-      } else if (ABWave.A && !ABWave.B){
-        ABWave.B = {tms: pt.tms, amp: pt.amp};
-      }
-    } else {
-      if (!ABSpec.A || (ABSpec.A && ABSpec.B)){
-        ABSpec.A = {hz: pt.hz, val: pt.val};
-        ABSpec.B = null;
-      } else if (ABSpec.A && !ABSpec.B){
-        ABSpec.B = {hz: pt.hz, val: pt.val};
-      }
-    }
-    updateDeltas();
+  // --- Overlay Draw (Zoom/Drag rect) ---
+  function clearOverlay(target){
+    const ov = (target==='wave')?ovWave:ovSpec;
+    const ctx = ov.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // reset to logical
+    ctx.clearRect(0,0, ov.width/dpr, ov.height/dpr);
+  }
+  function drawOverlayRect(target, x0, y0, x1, y1){
+    const ov = (target==='wave')?ovWave:ovSpec;
+    const ctx = ov.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // logical
+    
+    // clear first
+    ctx.clearRect(0,0, ov.width/dpr, ov.height/dpr);
+    
+    const c = getColors(theme);
+    ctx.fillStyle = c.overlay;
+    ctx.strokeStyle = c.overlayBorder;
+    ctx.lineWidth = 1;
+    
+    const w = x1-x0;
+    const h = y1-y0;
+    ctx.fillRect(x0, y0, w, h);
+    ctx.strokeRect(x0, y0, w, h);
   }
 
-  // ---------- Mouse / Pointer interactions ----------
-  function canvasPosFromEvent(ev, cv){
-    const rect = cv.getBoundingClientRect();
-    const x = (ev.clientX - rect.left) * (cv.width / rect.width);
-    const y = (ev.clientY - rect.top) * (cv.height / rect.height);
-    return {x,y};
+  // --- Handlers ---
+  function getPoint(ev){
+    // return {x,y} logical
+    if (ev.target === cvWave || ev.target === ovWave) return canvasPosFromEvent(ev, cvWave);
+    if (ev.target === cvSpec || ev.target === ovSpec) return canvasPosFromEvent(ev, cvSpec);
+    return {x:0,y:0};
   }
 
   const tapPick = {active:false, target:null, x0:0, y0:0, moved:false};
@@ -1690,19 +1676,23 @@
   function onMove(target, ev){
     if (appState !== State.PAUSED) return;
     if (drag.active) return;
-
+    
+    const p = getPoint(ev);
+    
     if (target === 'wave'){
-      const p = canvasPosFromEvent(ev, cvWave);
       const pt = pickWaveAtCanvas(p.x, p.y);
-      if (!pt){ cursorWave.active=false; bubbleWave.style.display='none'; drawOnce(); return; }
+      if (!pt){
+        cursorWave.active=false; bubbleWave.style.display='none'; drawOnce(); return;
+      }
       cursorWave.active = true;
       cursorWave.tms = pt.tms;
       cursorWave.amp = pt.amp;
       drawOnce();
     } else {
-      const p = canvasPosFromEvent(ev, cvSpec);
       const pt = pickSpecAtCanvas(p.x, p.y);
-      if (!pt){ cursorSpec.active=false; bubbleSpec.style.display='none'; drawOnce(); return; }
+      if (!pt){
+        cursorSpec.active=false; bubbleSpec.style.display='none'; drawOnce(); return;
+      }
       cursorSpec.active = true;
       cursorSpec.hz = pt.hz;
       cursorSpec.val = pt.val;
@@ -1710,14 +1700,13 @@
     }
   }
 
-    function onDown(target, ev){
+  function onDown(target, ev){
     const isShift = ev.shiftKey;
     if (appState !== State.PAUSED) return;
 
     // 2点選択モード：ドラッグではなく「クリックして離す」で点を確定
     if (mode === Mode.PICK){
-      const cv = (target==='wave') ? cvWave : cvSpec;
-      const p = canvasPosFromEvent(ev, cv);
+      const p = getPoint(ev);
       tapPick.active = true;
       tapPick.target = target;
       tapPick.x0 = p.x;
@@ -1729,441 +1718,167 @@
     // ズームモード：ドラッグ開始
     if (mode === Mode.ZOOM){
       drag.active = true;
-      drag.kind = isShift ? 'pan' : 'zoom';
+      drag.kind = isShift ? 'pan' : 'zoom'; // shift-drag to pan? (optional)
       drag.target = target;
-      const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-      drag.x0 = drag.x1 = p.x;
-      drag.y0 = drag.y1 = p.y;
-      if (!isShift) drawOverlayRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
+      const p = getPoint(ev);
+      drag.x0 = p.x; drag.y0 = p.y;
+      drag.x1 = p.x; drag.y1 = p.y;
+      
+      // if wave, clamp to plot area?
+      // simple rect draw
     }
   }
 
-    function onUp(target, ev){
-    // tap-pick (PICKモード)
-    if (tapPick.active && tapPick.target === target){
-      const cv = (target==='wave') ? cvWave : cvSpec;
-      const p = canvasPosFromEvent(ev, cv);
-      const dx = p.x - tapPick.x0;
-      const dy = p.y - tapPick.y0;
-      const moved = tapPick.moved || (dx*dx + dy*dy) > (8*8);
-      tapPick.active = false;
-
-      if (!moved && appState === State.PAUSED && mode === Mode.PICK){
-        const pt = (target==='wave') ? pickWaveAtCanvas(p.x,p.y) : pickSpecAtCanvas(p.x,p.y);
-        if (pt){
-          cycleAB(target, pt);
-          drawOnce();
-        }
-      }
+  function onDrag(ev){
+    if (tapPick.active){
+      const p = getPoint(ev);
+      const d = Math.abs(p.x - tapPick.x0) + Math.abs(p.y - tapPick.y0);
+      if (d > 5) tapPick.moved = true; // slight move tolerance
       return;
     }
 
-    if (!drag.active || drag.target !== target) return;
-
-    const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-    drag.x1 = p.x; drag.y1 = p.y;
-
-    if (drag.kind === 'zoom'){
-      applyZoomFromRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
-    } else {
-      applyPanFromDrag(target, drag.x0, drag.y0, drag.x1, drag.y1);
-    }
-
-    drag.active = false;
-    clearOverlay(target);
-    drawOnce();
-  }
-
-    function onDrag(target, ev){
-    // tap-pick の移動判定（少しでもドラッグしたら pick をキャンセル）
-    if (tapPick.active && tapPick.target === target){
-      const cv = (target==='wave') ? cvWave : cvSpec;
-      const p = canvasPosFromEvent(ev, cv);
-      const dx = p.x - tapPick.x0;
-      const dy = p.y - tapPick.y0;
-      if ((dx*dx + dy*dy) > (8*8)) tapPick.moved = true;
-    }
-
-    if (!drag.active || drag.target !== target) return;
-    const p = (target==='wave') ? canvasPosFromEvent(ev, cvWave) : canvasPosFromEvent(ev, cvSpec);
-    drag.x1 = p.x; drag.y1 = p.y;
+    if (!drag.active) return;
+    const target = drag.target;
+    // update drag rect
+    const p = getPoint(ev);
+    drag.x1 = p.x;
+    drag.y1 = p.y;
+    
     if (drag.kind === 'zoom'){
       drawOverlayRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
+    }
+  }
+
+  function onUp(ev){
+    if (tapPick.active){
+      if (!tapPick.moved){
+        // click confirmed
+        const target = tapPick.target;
+        if (target === 'wave'){
+           // set A or B
+           if (!ABWave.A) ABWave.A = {tms:cursorWave.tms, amp:cursorWave.amp};
+           else if (!ABWave.B) ABWave.B = {tms:cursorWave.tms, amp:cursorWave.amp};
+           else { ABWave.A = ABWave.B; ABWave.B = {tms:cursorWave.tms, amp:cursorWave.amp}; }
+        } else {
+           if (!ABSpec.A) ABSpec.A = {hz:cursorSpec.hz, val:cursorSpec.val};
+           else if (!ABSpec.B) ABSpec.B = {hz:cursorSpec.hz, val:cursorSpec.val};
+           else { ABSpec.A = ABSpec.B; ABSpec.B = {hz:cursorSpec.hz, val:cursorSpec.val}; }
+        }
+        updateDeltas();
+        drawOnce();
+      }
+      tapPick.active = false;
+      return;
+    }
+
+    if (!drag.active) return;
+    const target = drag.target;
+    clearOverlay(target);
+    drag.active = false;
+    
+    // apply zoom
+    if (drag.kind === 'zoom'){
+       applyZoomFromRect(target, drag.x0, drag.y0, drag.x1, drag.y1);
     }
   }
 
   function applyZoomFromRect(target, x0,y0,x1,y1){
     // ignore tiny
     if (Math.abs(x1-x0) < 8 || Math.abs(y1-y0) < 8) return;
-
+    
     if (target==='wave'){
-      const w = cvWave.width, h = cvWave.height;
+      const dpr = window.devicePixelRatio || 1;
+      const w = cvWave.width / dpr; 
+      const h = cvWave.height / dpr;
       const padL = 64, padR = 18, padT = 42, padB = 36;
       const pw = w - padL - padR;
       const ph = h - padT - padB;
-
+      
       const left = clamp(Math.min(x0,x1), padL, padL+pw);
       const right = clamp(Math.max(x0,x1), padL, padL+pw);
       const top = clamp(Math.min(y0,y1), padT, padT+ph);
       const bottom = clamp(Math.max(y0,y1), padT, padT+ph);
-
+      
       const xMinMs = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
       const xMaxMs = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-
+      
       let yMin = -1, yMax = 1;
       if (waveZoom.active){
-        yMin = Math.min(waveZoom.y0,waveZoom.y1);
-        yMax = Math.max(waveZoom.y0,waveZoom.y1);
-        if (Math.abs(yMax-yMin) < 1e-9){ yMin=-1; yMax=1; }
+        yMin = Math.min(waveZoom.y0, waveZoom.y1);
+        yMax = Math.max(waveZoom.y0, waveZoom.y1);
       }
-
-      const nx0 = (left - padL)/pw;
-      const nx1 = (right - padL)/pw;
-      const ny0 = (top - padT)/ph;
-      const ny1 = (bottom - padT)/ph;
-
-      const newX0ms = lerp(xMinMs, xMaxMs, nx0);
-      const newX1ms = lerp(xMinMs, xMaxMs, nx1);
-
-      const newYMax = lerp(yMax, yMin, ny0); // note inverted
-      const newYMin = lerp(yMax, yMin, ny1);
-
+      
+      // new ranges
+      // map left/right to tms
+      const t0 = xMinMs + ((left - padL)/pw) * (xMaxMs - xMinMs);
+      const t1 = xMinMs + ((right - padL)/pw) * (xMaxMs - xMinMs);
+      
+      // map top/bottom to amp (inverted y)
+      // y = padT + (1 - (val - yMin)/(yMax - yMin)) * ph
+      // (val - yMin)/(yMax-yMin) = 1 - (y - padT)/ph
+      // val = yMin + (1 - (y-padT)/ph)*(yMax-yMin)
+      
+      const amp1 = yMin + (1 - (top - padT)/ph)*(yMax-yMin);
+      const amp0 = yMin + (1 - (bottom - padT)/ph)*(yMax-yMin);
+      
       waveZoom.active = true;
-      waveZoom.x0 = clamp(newX0ms/1000, 0, waveWindowSec);
-      waveZoom.x1 = clamp(newX1ms/1000, 0, waveWindowSec);
-      waveZoom.y0 = newYMin;
-      waveZoom.y1 = newYMax;
-    } else {
-      // spectrum x zoom only (y fixed by mode)
-      const w = cvSpec.width, h = cvSpec.height;
-      const padL = 70, padR = 18, padT = 58, padB = 36;
-      const pw = w - padL - padR;
-      const ph = h - padT - padB;
+      waveZoom.x0 = t0 / 1000;
+      waveZoom.x1 = t1 / 1000;
+      waveZoom.y0 = amp0;
+      waveZoom.y1 = amp1;
+      drawOnce();
 
+    } else {
+      // spec
+      const dpr = window.devicePixelRatio || 1;
+      const w = cvSpec.width / dpr; 
+      const padL = 70, padR = 18;
+      const pw = w - padL - padR;
+      
       const left = clamp(Math.min(x0,x1), padL, padL+pw);
       const right = clamp(Math.max(x0,x1), padL, padL+pw);
-
-      const baseMin = specZoom.active ? specZoom.x0 : parseFloat(minHzIn.value);
-      const baseMax = specZoom.active ? specZoom.x1 : parseFloat(maxHzIn.value);
-
-      const nx0 = (left - padL)/pw;
-      const nx1 = (right - padL)/pw;
-
-      const newX0 = lerp(baseMin, baseMax, nx0);
-      const newX1 = lerp(baseMin, baseMax, nx1);
-
+      
+      const data = getSpectrumDisplayData();
+      if (!data) return;
+      
+      const hz0 = data.x0 + ((left - padL)/pw) * (data.x1 - data.x0);
+      const hz1 = data.x0 + ((right - padL)/pw) * (data.x1 - data.x0);
+      
       specZoom.active = true;
-      specZoom.x0 = Math.min(newX0, newX1);
-      specZoom.x1 = Math.max(newX0, newX1);
+      specZoom.x0 = hz0;
+      specZoom.x1 = hz1;
+      drawOnce();
     }
   }
 
-  function applyPanFromDrag(target, x0,y0,x1,y1){
-    // Shift + drag: pan.
-    const dx = x1 - x0;
-    const dy = y1 - y0;
 
-    if (target==='wave'){
-      const w = cvWave.width, h = cvWave.height;
-      const padL = 64, padR = 18, padT = 42, padB = 36;
-      const pw = w - padL - padR;
-      const ph = h - padT - padB;
-
-      const xMinMs = (waveZoom.active ? waveZoom.x0 : 0) * 1000;
-      const xMaxMs = (waveZoom.active ? waveZoom.x1 : waveWindowSec) * 1000;
-      let yMin = -1, yMax = 1;
-      if (waveZoom.active){
-        yMin = Math.min(waveZoom.y0,waveZoom.y1);
-        yMax = Math.max(waveZoom.y0,waveZoom.y1);
-      }
-      const spanX = xMaxMs - xMinMs;
-      const spanY = yMax - yMin;
-
-      const dXms = -(dx/pw) * spanX;
-      const dY =  (dy/ph) * spanY; // drag down -> move window down
-
-      let nx0 = xMinMs + dXms;
-      let nx1 = xMaxMs + dXms;
-      // constrain to [0, windowSec]
-      const minAll = 0;
-      const maxAll = waveWindowSec*1000;
-      const shift = clamp(nx0, minAll, maxAll-spanX) - nx0;
-      nx0 += shift; nx1 += shift;
-
-      let ny0 = yMin + dY;
-      let ny1 = yMax + dY;
-
-      waveZoom.active = true;
-      waveZoom.x0 = nx0/1000;
-      waveZoom.x1 = nx1/1000;
-      waveZoom.y0 = ny0;
-      waveZoom.y1 = ny1;
-    } else {
-      // spectrum x pan only
-      const w = cvSpec.width, h = cvSpec.height;
-      const padL = 70, padR = 18, padT = 58, padB = 36;
-      const pw = w - padL - padR;
-
-      const baseMin = specZoom.active ? specZoom.x0 : parseFloat(minHzIn.value);
-      const baseMax = specZoom.active ? specZoom.x1 : parseFloat(maxHzIn.value);
-      const span = baseMax - baseMin;
-
-      const dHz = -(dx/pw) * span;
-
-      let nx0 = baseMin + dHz;
-      let nx1 = baseMax + dHz;
-
-      const minAll = parseFloat(minHzIn.value);
-      const maxAll = parseFloat(maxHzIn.value);
-
-      // keep span, clamp within base range
-      const shift = clamp(nx0, minAll, maxAll-span) - nx0;
-      nx0 += shift; nx1 += shift;
-
-      specZoom.active = true;
-      specZoom.x0 = nx0;
-      specZoom.x1 = nx1;
-    }
+  // --- Event Listeners Bind ---
+  // Using Pointer Events on wrapper or canvas?
+  // Use wrap to catch overlay events too
+  
+  function bindPointer(wrap, targetName){
+    wrap.addEventListener('pointermove', (e) => {
+       if (e.isPrimary) onMove(targetName, e);
+       onDrag(e);
+    });
+    wrap.addEventListener('pointerdown', (e) => {
+       wrap.setPointerCapture(e.pointerId);
+       onDown(targetName, e);
+    });
+    wrap.addEventListener('pointerup', (e) => {
+       wrap.releasePointerCapture(e.pointerId);
+       onUp(e);
+    });
+    wrap.addEventListener('pointercancel', (e) => {
+       wrap.releasePointerCapture(e.pointerId);
+       onUp(e);
+    });
   }
 
-  // Double click zoom reset (ALWAYS allowed)
-  wrapWave.addEventListener('dblclick', (e) => { resetWaveZoom(); clearOverlay('wave'); drawOnce(); });
-  wrapSpec.addEventListener('dblclick', (e) => { resetSpecZoom(); clearOverlay('spec'); drawOnce(); });
+  bindPointer(wrapWave, 'wave');
+  bindPointer(wrapSpec, 'spec');
 
-  // mouse events
-  wrapWave.addEventListener('mousemove', (e) => onMove('wave', e));
-  wrapSpec.addEventListener('mousemove', (e) => onMove('spec', e));
-  wrapWave.addEventListener('mousedown', (e) => onDown('wave', e));
-  wrapSpec.addEventListener('mousedown', (e) => onDown('spec', e));
-  window.addEventListener('mouseup', (e) => { onUp('wave', e); onUp('spec', e); });
-  window.addEventListener('mousemove', (e) => { onDrag('wave', e); onDrag('spec', e); });
-
-  // Pointer events for touch gestures
-    function handlePointerDown(target, ev){
-    if (ev.pointerType === 'mouse') return; // mouse handled above
-    ev.preventDefault();
-
-    const wrap = (target==='wave') ? wrapWave : wrapSpec;
-    wrap.setPointerCapture(ev.pointerId);
-
-    // register pointer
-    pointers.set(ev.pointerId, {x: ev.clientX, y: ev.clientY});
-
-    // PICKモード（Pause中のみ）：単指タップでA/B選択
-    if (appState === State.PAUSED && mode === Mode.PICK){
-      // pinch になったらキャンセルするので、まずは候補として保持
-      if (pointers.size === 1){
-        touchTap.active = true;
-        touchTap.target = target;
-        touchTap.pointerId = ev.pointerId;
-        touchTap.x0 = ev.clientX;
-        touchTap.y0 = ev.clientY;
-        touchTap.moved = false;
-      } else {
-        // 2本指以上になったらタップ候補はキャンセル
-        touchTap.active = false;
-      }
-      return;
-    }
-
-    // ZOOMモード：2本指ピンチ開始（Pause中のみ）
-    if (pointers.size === 2){
-      // start pinch gesture（Pause中のズームモードのみ有効）
-      if (appState !== State.PAUSED || mode !== Mode.ZOOM){
-        gesture = null;
-        return;
-      }
-      // cancel any residual tap
-      touchTap.active = false;
-
-      const pts = [...pointers.values()];
-      const dx = pts[1].x - pts[0].x;
-      const dy = pts[1].y - pts[0].y;
-      const dist = Math.hypot(dx, dy);
-      const cx = (pts[0].x + pts[1].x) / 2;
-      const cy = (pts[0].y + pts[1].y) / 2;
-
-      gesture = {
-        target,
-        startDist: dist,
-        startCenter: {x: cx, y: cy},
-        startWaveZoom: {...waveZoom},
-        startSpecZoom: {...specZoom},
-      };
-    }
-  }
-    function handlePointerMove(target, ev){
-    if (ev.pointerType === 'mouse') return;
-    if (!pointers.has(ev.pointerId)) return;
-    ev.preventDefault();
-    pointers.set(ev.pointerId, {x: ev.clientX, y: ev.clientY});
-
-    // PICKモード：タップ候補の移動量を監視（動いたらキャンセル）
-    if (touchTap.active && touchTap.pointerId === ev.pointerId){
-      const dx = ev.clientX - touchTap.x0;
-      const dy = ev.clientY - touchTap.y0;
-      if ((dx*dx + dy*dy) > (12*12)) touchTap.moved = true;
-    }
-
-
-    if (pointers.size === 2 && gesture && gesture.target === target){
-      if (appState !== State.PAUSED) return;
-      if (mode !== Mode.ZOOM) return;
-
-      const pts = [...pointers.values()];
-      const dx = pts[1].x - pts[0].x;
-      const dy = pts[1].y - pts[0].y;
-      const dist = Math.hypot(dx, dy);
-      const cx = (pts[0].x + pts[1].x) / 2;
-      const cy = (pts[0].y + pts[1].y) / 2;
-
-      const scale = dist / Math.max(1e-6, gesture.startDist);
-      const panX = cx - gesture.startCenter.x;
-      const panY = cy - gesture.startCenter.y;
-
-      if (target === 'wave'){
-        // pinch zoom both axes; two-finger pan
-        const z0 = gesture.startWaveZoom;
-        const baseX0 = z0.active ? z0.x0 : 0;
-        const baseX1 = z0.active ? z0.x1 : waveWindowSec;
-        const baseY0 = z0.active ? Math.min(z0.y0,z0.y1) : -1;
-        const baseY1 = z0.active ? Math.max(z0.y0,z0.y1) : 1;
-
-        const spanX = (baseX1 - baseX0) / scale;
-        const spanY = (baseY1 - baseY0) / scale;
-
-        // anchor around center in plot space
-        const rect = wrapWave.getBoundingClientRect();
-        const nx = (cx - rect.left) / rect.width;
-        const ny = (cy - rect.top) / rect.height;
-
-        const centerX = lerp(baseX0, baseX1, clamp(nx,0,1));
-        const centerY = lerp(baseY1, baseY0, clamp(ny,0,1)); // inverted
-
-        let nx0 = centerX - spanX/2;
-        let nx1 = centerX + spanX/2;
-
-        // pan from finger movement (approx)
-        const dxs = -(panX / rect.width) * (baseX1 - baseX0);
-        const dys =  (panY / rect.height) * (baseY1 - baseY0);
-
-        nx0 += dxs; nx1 += dxs;
-
-        // constrain x to [0, window]
-        const minAll = 0, maxAll = waveWindowSec;
-        const span = nx1 - nx0;
-        const shift = clamp(nx0, minAll, maxAll-span) - nx0;
-        nx0 += shift; nx1 += shift;
-
-        const ny0 = (centerY - spanY/2) + dys;
-        const ny1 = (centerY + spanY/2) + dys;
-
-        waveZoom.active = true;
-        waveZoom.x0 = clamp(nx0, 0, waveWindowSec);
-        waveZoom.x1 = clamp(nx1, 0, waveWindowSec);
-        waveZoom.y0 = ny0;
-        waveZoom.y1 = ny1;
-
-        drawOnce();
-      } else {
-        // spectrum: pinch zoom x, pan x
-        const z0 = gesture.startSpecZoom;
-        const baseX0 = z0.active ? z0.x0 : parseFloat(minHzIn.value);
-        const baseX1 = z0.active ? z0.x1 : parseFloat(maxHzIn.value);
-        const rect = wrapSpec.getBoundingClientRect();
-        const nx = (cx - rect.left) / rect.width;
-        const centerX = lerp(baseX0, baseX1, clamp(nx,0,1));
-        const spanX = (baseX1 - baseX0) / scale;
-
-        let nx0 = centerX - spanX/2;
-        let nx1 = centerX + spanX/2;
-
-        const dHz = -(panX / rect.width) * (baseX1 - baseX0);
-        nx0 += dHz; nx1 += dHz;
-
-        // clamp within base range inputs
-        const minAll = parseFloat(minHzIn.value);
-        const maxAll = parseFloat(maxHzIn.value);
-        const span = nx1 - nx0;
-        const shift = clamp(nx0, minAll, maxAll-span) - nx0;
-        nx0 += shift; nx1 += shift;
-
-        specZoom.active = true;
-        specZoom.x0 = nx0;
-        specZoom.x1 = nx1;
-
-        drawOnce();
-      }
-    }
-  }
-    function handlePointerUp(target, ev){
-    if (ev.pointerType === 'mouse') return;
-    ev.preventDefault();
-
-    // PICKモード（Pause中のみ）：指を離したときに点を確定
-    if (touchTap.active && touchTap.pointerId === ev.pointerId && touchTap.target === target){
-      const dx = ev.clientX - touchTap.x0;
-      const dy = ev.clientY - touchTap.y0;
-      const moved = touchTap.moved || (dx*dx + dy*dy) > (12*12);
-      touchTap.active = false;
-
-      if (!moved && appState === State.PAUSED && mode === Mode.PICK){
-        const cv = (target==='wave') ? cvWave : cvSpec;
-        const p = canvasPosFromEvent(ev, cv);
-        const pt = (target==='wave') ? pickWaveAtCanvas(p.x,p.y) : pickSpecAtCanvas(p.x,p.y);
-        if (pt){
-          cycleAB(target, pt);
-          drawOnce();
-        }
-      }
-      // ここで return しない：ダブルタップ判定やポインタ管理は続行
-    }
-
-// double-tap to reset zoom (mobile)
-    if (ev.pointerType === 'touch'){
-      const now = performance.now();
-      const r = wrapRect(target);
-      const x = ev.clientX - r.left;
-      const y = ev.clientY - r.top;
-
-      const lt = lastTap[target];
-      const dt = now - lt.t;
-      const dx = x - lt.x;
-      const dy = y - lt.y;
-      if (dt > 0 && dt < 320 && (dx*dx + dy*dy) < 18*18){
-        // treat as double tap
-        if (target === 'wave') resetWaveZoom();
-        else resetSpecZoom();
-        lt.t = 0;
-      } else {
-        lt.t = now; lt.x = x; lt.y = y;
-      }
-    }
-
-    pointers.delete(ev.pointerId);
-    if (pointers.size < 2){
-      gesture = null;
-    }
-  }
-
-  wrapWave.addEventListener('pointerdown', (e) => handlePointerDown('wave', e));
-  wrapWave.addEventListener('pointermove', (e) => handlePointerMove('wave', e));
-  wrapWave.addEventListener('pointerup', (e) => handlePointerUp('wave', e));
-  wrapWave.addEventListener('pointercancel', (e) => handlePointerUp('wave', e));
-
-  wrapSpec.addEventListener('pointerdown', (e) => handlePointerDown('spec', e));
-  wrapSpec.addEventListener('pointermove', (e) => handlePointerMove('spec', e));
-  wrapSpec.addEventListener('pointerup', (e) => handlePointerUp('spec', e));
-  wrapSpec.addEventListener('pointercancel', (e) => handlePointerUp('spec', e));
-
-  // ---------- Pause snapshot correctness (fix: spectrum doesn't change on click) ----------
-  // We freeze snapSpec at pause time; click doesn't recalc it.
-
-  // ---------- On entering PAUSED, ensure snapshot fixed ----------
-  // already in pauseToggle()
-
-  // ---------- CSV shortcut must work only in PAUSED (handled) ----------
-
+  
   // ---------- Initialize defaults ----------
   function initUI(){
     setTheme('light');
@@ -2179,21 +1894,101 @@
     updateDeltas();
   }
 
-  // ---------- Prevent accidental wheel zoom (explicitly do nothing) ----------
+  // ---------- Prevent accidental wheel zoom ----------
   wrapWave.addEventListener('wheel', (e) => { e.preventDefault(); }, {passive:false});
   wrapSpec.addEventListener('wheel', (e) => { e.preventDefault(); }, {passive:false});
 
-  // ---------- If user changes y-mode while paused, update AB Δ + peaks + CSV linkage ----------
-  // We snapshot on change; AB values remain numeric from old mode.
-  // For strict linkage, we recommend re-pick after change; Esc clears.
-  // (User requirement: "連動" primarily means the numbers shown use the same mode; we satisfy by cursor/draw/CSV using yMode.)
-
-  // ---------- Pause / Running labels ----------
-  function updateStatusLines(){
-    // nothing extra for now
+  // ---------- CSV Exports ----------
+  function saveText(text, filename){
+    const blob = new Blob([text], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
+  function downloadCSVWave(){
+    if (appState !== State.PAUSED) return;
+    // Output displayed range? or full window?
+    // Let's output the full "snapshot" window for consistency
+    if (!snapWave) return;
+    
+    const lines = [];
+    lines.push(`# kind: waveform`);
+    lines.push(`# sampleRate: ${sampleRate}`);
+    lines.push(`# windowSec: ${waveWindowSec}`);
+    lines.push(`# gain: ${waveGainHold}`);
+    lines.push(`t_sec,amp_norm`);
+    
+    // if zoom is active, limit to zoom? 
+    // Usually CSV is for analysis, so let's export valid range of current view (Zoomed range).
+    // If not zoomed, export full window.
+    
+    const x0 = waveZoom.active ? waveZoom.x0 : 0;
+    const x1 = waveZoom.active ? waveZoom.x1 : waveWindowSec;
+    
+    const dt = 1/sampleRate;
+    
+    // samples
+    const samples = snapWave;
+    // mapped range
+    const i0 = Math.floor(x0 / dt);
+    const i1 = Math.ceil(x1 / dt);
+    
+    for (let i=i0; i<=i1; i++){
+      if (i<0 || i>=samples.length) continue;
+      const t = i*dt;
+      const v = samples[i] * waveGainHold; // export gained value
+      lines.push(`${t.toFixed(6)},${v.toFixed(6)}`);
+    }
+    
+    saveText(lines.join('\n'), `waveform_${nowTs()}.csv`);
+  }
+
+  function downloadCSVSpec(){
+    if (appState !== State.PAUSED) return;
+    const spec = getSpectrumDisplayData();
+    if (!spec) return; // shouldn't happen
+    
+    const lines = [];
+    lines.push(`# kind: spectrum`);
+    lines.push(`# sampleRate: ${sampleRate}`);
+    lines.push(`# fftSize: ${fftSize}`);
+    lines.push(`# yMode: ${yMode}`);
+    lines.push(`f_hz,y_val`);
+    
+    const {binHz, yArr, i0, i1} = spec; 
+    // i0..i1 is visual range. Export visual range.
+    
+    for (let i=i0; i<=i1; i++){
+      const f = i * binHz;
+      let v = yArr[i];
+      if (yMode === 'norm' && yArr instanceof Uint8Array) v = (v/255)*100;
+      lines.push(`${f.toFixed(2)},${v.toFixed(4)}`);
+    }
+    
+    saveText(lines.join('\n'), `spectrum_${nowTs()}.csv`);
+  }
+
+  btnWaveABClear.addEventListener('click', () => {
+    ABWave.A = ABWave.B = null;
+    updateDeltas();
+    drawOnce();
+  });
+  btnSpecABClear.addEventListener('click', () => {
+    ABSpec.A = ABSpec.B = null;
+    updateDeltas();
+    drawOnce();
+  });
+
+  btnWaveCSV.addEventListener('click', downloadCSVWave);
+  btnSpecCSV.addEventListener('click', downloadCSVSpec);
+
+
   initUI();
+
 })();
 </script>
 </body>

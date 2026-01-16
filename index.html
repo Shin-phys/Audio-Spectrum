@@ -1007,7 +1007,130 @@
     if (view === 'both' || view === 'spec') drawSpec(c);
   }
 
-  function clearCanvas(ctx, w, h, fill){[...] 
+  function clearCanvas(ctx, w, h, fill){
+    ctx.clearRect(0, 0, w, h);
+    if (fill){
+      ctx.fillStyle = fill;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  function getCanvasSize(cv){
+    const w = cv.clientWidth || cv.width;
+    const h = cv.clientHeight || cv.height;
+    return {w, h};
+  }
+
+  function clearOverlay(target){
+    const ov = target === 'wave' ? ovWave : ovSpec;
+    const ctx = ov.getContext('2d');
+    const {w, h} = getCanvasSize(ov);
+    ctx.clearRect(0, 0, w, h);
+  }
+
+  function updateDeltas(){
+    if (!ABWave.A || !ABWave.B){
+      deltaWave.textContent = 'A/B未選択';
+    }
+    if (!ABSpec.A || !ABSpec.B){
+      deltaSpec.textContent = 'A/B未選択';
+    }
+  }
+
+  function drawWave(c){
+    const ctx = cvWave.getContext('2d');
+    const {w, h} = getCanvasSize(cvWave);
+    clearCanvas(ctx, w, h, c.bg);
+
+    ctx.strokeStyle = c.grid;
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.5);
+    ctx.lineTo(w, h * 0.5);
+    ctx.stroke();
+
+    let data = null;
+    if (appState === State.PAUSED && snapWave){
+      data = snapWave;
+    } else if (appState !== State.STOPPED){
+      data = getWaveWindowFromRing();
+    }
+    if (!data || data.length === 0) return;
+
+    const gain = (appState === State.PAUSED) ? waveGainHold : waveGain;
+    const step = w / Math.max(1, data.length - 1);
+    ctx.strokeStyle = c.accent;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let i = 0; i < data.length; i++){
+      const x = i * step;
+      const y = h * 0.5 - data[i] * gain * h * 0.45;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  function getSpectrumSeries(){
+    if (!analyser) return null;
+    if (appState === State.PAUSED && snapSpec && snapSpecMeta?.yMode === yMode){
+      return {data: snapSpec, yMode};
+    }
+    if (yMode === 'db'){
+      analyser.getFloatFrequencyData(freqBins);
+      return {data: freqBins, yMode};
+    }
+    analyser.getByteFrequencyData(freqBinsByte);
+    const out = new Float32Array(freqBinsByte.length);
+    for (let i = 0; i < freqBinsByte.length; i++){
+      out[i] = (freqBinsByte[i] / 255) * 100;
+    }
+    return {data: out, yMode};
+  }
+
+  function drawSpec(c){
+    const ctx = cvSpec.getContext('2d');
+    const {w, h} = getCanvasSize(cvSpec);
+    clearCanvas(ctx, w, h, c.bg);
+
+    const series = getSpectrumSeries();
+    if (!series) return;
+    const data = series.data;
+
+    const minHz = Math.max(0, parseFloat(minHzIn.value));
+    const maxHz = Math.max(minHz + 1, parseFloat(maxHzIn.value));
+    const nyq = sampleRate / 2;
+    const hzPerBin = nyq / data.length;
+    const startBin = clamp(Math.floor(minHz / hzPerBin), 0, data.length - 1);
+    const endBin = clamp(Math.ceil(maxHz / hzPerBin), startBin + 1, data.length);
+    const visibleBins = Math.max(1, endBin - startBin);
+    const step = w / Math.max(1, visibleBins);
+
+    ctx.strokeStyle = c.grid;
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.5);
+    ctx.lineTo(w, h * 0.5);
+    ctx.stroke();
+
+    ctx.fillStyle = c.accent;
+    ctx.strokeStyle = c.accent;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < visibleBins; i++){
+      const idx = startBin + i;
+      const raw = data[idx];
+      let norm = 0;
+      if (series.yMode === 'db'){
+        const minDb = analyser?.minDecibels ?? -100;
+        const maxDb = analyser?.maxDecibels ?? -30;
+        norm = clamp((raw - minDb) / (maxDb - minDb), 0, 1);
+      } else {
+        norm = clamp(raw / 100, 0, 1);
+      }
+      const barH = norm * h;
+      const x = i * step;
+      const barW = Math.max(1, step - 1);
+      ctx.fillRect(x, h - barH, barW, barH);
+    }
+  }
 })();
 </script>
 </body>

@@ -1223,25 +1223,47 @@
     const i1 = Math.min(samples.length-1, Math.ceil(xMax / dtms));
     const nVis = i1 - i0 + 1;
 
-    if (nVis <= 2){
-      // too short
+    const pxCount = Math.max(1, Math.floor(pw));
+    const spp = nVis / pxCount;
+
+    if (nVis <= 1) {
+      // 表示データなし
+    } else if (spp <= 1.5) {
+      // 十分に拡大されている場合：折れ線で描画
+      ctx.beginPath();
+      let first = true;
+      for (let i = i0; i <= i1; i++) {
+        const x = padL + (i * dtms - xMin) / (xMax - xMin) * pw;
+        const v = clamp(samples[i] * gWave, yMin, yMax);
+        const y = padT + (1 - (v - yMin) / (yMax - yMin)) * ph;
+        if (first) { ctx.moveTo(x, y); first = false; }
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
     } else {
-      // per x pixel, compute min/max
-      const pxCount = Math.max(1, Math.floor(pw));
-      const spp = nVis / pxCount;
-      for (let px=0; px<pxCount; px++){
-        const a = Math.floor(i0 + px*spp);
-        const b = Math.floor(i0 + (px+1)*spp);
-        let mn =  1e9, mx = -1e9;
-        const bb = Math.min(i1, Math.max(a+1, b));
-        for (let i=a; i<=bb; i++){
+      // 縮小時（密な領域）：ピクセルごとの min/max を縦線で描画（エイリアシング抑制）
+      ctx.beginPath();
+      for (let px = 0; px < pxCount; px++) {
+        const tA = xMin + (px / pxCount) * (xMax - xMin);
+        const tB = xMin + ((px + 1) / pxCount) * (xMax - xMin);
+        let ia = Math.floor(tA / dtms);
+        let ib = Math.floor(tB / dtms);
+        ia = clamp(ia, i0, i1);
+        ib = clamp(ib, i0, i1);
+
+        let mn = 1e9, mx = -1e9;
+        let found = false;
+        for (let i = ia; i <= ib; i++) {
           const v = clamp(samples[i] * gWave, yMin, yMax);
-          if (v<mn) mn=v;
-          if (v>mx) mx=v;
+          if (v < mn) mn = v;
+          if (v > mx) mx = v;
+          found = true;
         }
-        const x = padL + (px / (pxCount-1)) * pw;
-        const y1 = padT + (1 - (mx - yMin)/(yMax-yMin)) * ph;
-        const y2 = padT + (1 - (mn - yMin)/(yMax-yMin)) * ph;
+        if (!found) continue;
+
+        const x = padL + (px / Math.max(1, pxCount - 1)) * pw;
+        const y1 = padT + (1 - (mx - yMin) / (yMax - yMin)) * ph;
+        const y2 = padT + (1 - (mn - yMin) / (yMax - yMin)) * ph;
         ctx.moveTo(x, y1);
         ctx.lineTo(x, y2);
       }
@@ -1485,34 +1507,46 @@
     const pxCount = Math.max(1, Math.floor(pw));
     const spp = nVis / pxCount;
 
-    if (appState === State.PAUSED && spp <= 2.2){
-      // ズーム後・Pause中：滑らかな折れ線で描画（荒さ対策）
+    if (spp <= 2.2) {
+      // 表示解像度に対してデータが少ない場合：滑らかな折れ線で描画（荒さ対策）
       ctx.beginPath();
-      for (let i=i0;i<=i1;i++){
-        const x = padL + ((i - i0) / Math.max(1, nVis-1)) * pw;
+      let first = true;
+      for (let i = i0; i <= i1; i++) {
+        const freq = i * binHz;
+        const x = padL + (freq - x0) / (x1 - x0) * pw;
         const v = yArr[i];
-        const y = padT + (1 - (v - yMin)/(yMax-yMin)) * ph;
-        if (i === i0) ctx.moveTo(x,y);
-        else ctx.lineTo(x,y);
+        if (v === undefined || !Number.isFinite(v)) continue;
+        const y = padT + (1 - (clamp(v, yMin, yMax) - yMin) / (yMax - yMin)) * ph;
+        if (first) { ctx.moveTo(x, y); first = false; }
+        else ctx.lineTo(x, y);
       }
       ctx.stroke();
     } else {
-      // 密な領域：min/max を縦線で描画（エイリアシング抑制）
+      // 密な領域：各ピクセルの範囲内の min/max を縦線を描画（エイリアシング抑制）
       ctx.beginPath();
-      const spp2 = Math.max(1, spp);
-      for (let px=0; px<pxCount; px++){
-        const a = Math.floor(i0 + px*spp2);
-        const b = Math.floor(i0 + (px+1)*spp2);
-        let mn =  1e9, mx = -1e9;
-        const bb = Math.min(i1, Math.max(a+1, b));
-        for (let i=a; i<=bb; i++){
+      for (let px = 0; px < pxCount; px++) {
+        const fA = x0 + (px / pxCount) * (x1 - x0);
+        const fB = x0 + ((px + 1) / pxCount) * (x1 - x0);
+        let ia = Math.floor(fA / binHz);
+        let ib = Math.floor(fB / binHz);
+        ia = clamp(ia, i0, i1);
+        ib = clamp(ib, i0, i1);
+
+        let mn = 1e9, mx = -1e9;
+        let found = false;
+        for (let i = ia; i <= ib; i++) {
           const v = yArr[i];
-          if (v < mn) mn = v;
-          if (v > mx) mx = v;
+          if (v !== undefined && Number.isFinite(v)) {
+            if (v < mn) mn = v;
+            if (v > mx) mx = v;
+            found = true;
+          }
         }
-        const x = padL + (px / Math.max(1, (pxCount-1))) * pw;
-        const y1p = padT + (1 - (mx - yMin)/(yMax-yMin)) * ph;
-        const y2p = padT + (1 - (mn - yMin)/(yMax-yMin)) * ph;
+        if (!found) continue;
+
+        const x = padL + (px / Math.max(1, pxCount - 1)) * pw;
+        const y1p = padT + (1 - (clamp(mx, yMin, yMax) - yMin) / (yMax - yMin)) * ph;
+        const y2p = padT + (1 - (clamp(mn, yMin, yMax) - yMin) / (yMax - yMin)) * ph;
         ctx.moveTo(x, y1p);
         ctx.lineTo(x, y2p);
       }

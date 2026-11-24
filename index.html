@@ -158,6 +158,21 @@
       border:1px solid var(--border); margin-right:6px;
       font-size:12px; color:var(--muted);
     }
+    .measureBar{align-items:stretch}
+    .measureBar .group{align-items:center}
+    .chk{display:flex; align-items:center; gap:6px; font-size:14px; color:var(--fg); cursor:pointer}
+    .chk input{width:18px; height:18px}
+    .levelBox{display:flex; flex-direction:column; justify-content:center; min-width:150px}
+    .levelBig{font-size:30px; font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums; color:var(--accent)}
+    .levelSub{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
+    #cvLevel{width:260px; height:64px; border:1px solid var(--border); border-radius:8px; background:var(--bg)}
+    .hint{font-size:12px; color:var(--muted); line-height:1.4}
+    .hint.warn{color:#d97706}
+    @media (max-width: 600px){
+      .levelBig{font-size:26px}
+      #cvLevel{width:100%; height:56px}
+      .levelGroup{width:100%}
+    }
     .kbd{
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       padding:1px 6px; border-radius:7px;
@@ -197,6 +212,39 @@
     <div class="group">
       <span class="pill" id="pillState">停止中</span>
       <span class="pill" id="pillHint">ショートカット: <span class="kbd">S</span><span class="kbd">P</span><span class="kbd">R</span><span class="kbd">Z</span><span class="kbd">W</span><span class="kbd">F</span><span class="kbd">B</span><span class="kbd">V</span><span class="kbd">Esc</span></span>
+    </div>
+  </div>
+
+  <!-- MEASURE BAR: 周波数を絞る（②）＋ 音の大きさ dB（③） -->
+  <div class="topbar measureBar" id="measureBar">
+    <div class="group" style="flex-direction:column; align-items:flex-start; gap:6px">
+      <div class="group">
+        <label class="chk"><input type="checkbox" id="chkBand" /> 周波数を絞る</label>
+        <label for="bandF">中心</label>
+        <input id="bandF" type="number" min="20" max="20000" step="0.1" value="1000" style="width:100px" />
+        <span class="small">Hz</span>
+        <button id="btnBandPeak" title="いま表示しているスペクトルの最大の周波数を中心にする">ピークに合わせる</button>
+        <label for="bandW">幅 ±</label>
+        <select id="bandW">
+          <option>1</option><option>2</option><option selected>3</option><option>5</option>
+          <option>10</option><option>20</option><option>50</option><option>100</option>
+        </select>
+        <span class="small">Hz</span>
+      </div>
+      <div class="hint" id="bandHint">オンにすると、中心 ± 幅 の周波数の音だけで、波形と音の大きさを表示します。</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="group levelGroup">
+      <div class="levelBox">
+        <div class="small" id="levelLabel">音の大きさ（全体）</div>
+        <div class="levelBig" id="levelValue">— dB</div>
+        <div class="levelSub" id="levelSub">&nbsp;</div>
+      </div>
+      <canvas id="cvLevel" width="520" height="128"></canvas>
+      <div class="group" style="flex-direction:column; gap:6px">
+        <button id="btnLevelRef" title="いまの値を 0 dB とし、そこからの差を表示する">基準にする</button>
+        <button id="btnLevelRefClear" disabled>基準を解除</button>
+      </div>
     </div>
   </div>
 
@@ -251,7 +299,18 @@
           <div class="controls" id="specControls">
             <!-- 1st row (short, aligned) -->
             <div class="controlRow">
-              <label for="fftSel">FFTサイズ</label>
+              <label for="methodSel">計算方法</label>
+              <select id="methodSel">
+                <option value="fft" selected>FFT（高速フーリエ変換）</option>
+                <option value="dft">DFT（定義どおりに計算）</option>
+              </select>
+              <label for="dftStepSel" class="dftOnly">間隔</label>
+              <select id="dftStepSel" class="dftOnly">
+                <option value="auto" selected>FFT と同じ</option>
+                <option value="1">1 Hz</option><option value="0.5">0.5 Hz</option>
+                <option value="0.2">0.2 Hz</option><option value="0.1">0.1 Hz</option>
+              </select>
+              <label for="fftSel">データ数 N</label>
               <select id="fftSel">
                 <option>1024</option><option>2048</option><option>4096</option>
                 <option selected>8192</option>
@@ -262,6 +321,8 @@
               <button id="btnSpecABClear">A/B解除</button>
               <button id="btnSpecCSV" disabled>CSV</button>
             </div>
+
+            <div class="hint" id="specHint"></div>
 
             <!-- 2nd row (range) -->
             <div class="controlRow">
@@ -309,6 +370,15 @@
         Pause中はドラッグでズーム、<span class="kbd">Z</span>で2点選択へ切替。<span class="kbd">Esc</span>でカーソル情報とA/B解除。
         CSVはPause中のみ（<span class="kbd">V</span>）。
       </div>
+      <div class="small" style="margin-top:6px">
+        <b>音の大きさ（dB）：</b>マイクに入る最大の大きさの正弦波を 0 dB とした値（dBFS）です。騒音計の dB とは基準が違うので、
+        「基準にする」で 0 dB を決め、そこからの差（例：腹は節より 15 dB 大きい）で比べてください。値は端末やマイクの感度で変わります。
+      </div>
+      <div class="small" style="margin-top:6px">
+        <b>班ごとに周波数をずらす実験：</b>「周波数を絞る」をオンにし、データ数 N を 32768、幅を ±3 Hz 程度にすると、
+        10 Hz ほどずれた隣の班の音をほぼ除いて、自分の班の周波数の音の大きさだけを測れます。
+        N が小さいと周波数の区別が粗くなるので、ずらす量の目安は上の表示を見てください。
+      </div>
     </div>
   </div>
 </div>
@@ -331,6 +401,152 @@
   };
   const formatHz = (hz) => (hz >= 1000) ? (hz/1000).toFixed(hz%1000===0?0:1)+"k" : String(Math.round(hz));
   const nowTs = () => new Date().toISOString().replace(/[:.]/g,'-');
+
+  // ---------- Signal processing（自前で計算：Pause 中も同じデータから再計算できる） ----------
+  // ハン窓（データ数ごとにキャッシュ）
+  const hannCache = new Map();
+  function hann(N){
+    let w = hannCache.get(N);
+    if (!w){
+      w = new Float64Array(N);
+      let sum = 0, sum2 = 0;
+      for (let i=0;i<N;i++){ w[i] = 0.5 - 0.5*Math.cos(2*Math.PI*i/(N-1)); sum += w[i]; sum2 += w[i]*w[i]; }
+      w.sum = sum;
+      w.enbw = N * sum2 / (sum*sum); // 等価雑音帯域幅（ビン数）。ハン窓で約 1.5
+      hannCache.set(N, w);
+    }
+    return w;
+  }
+
+  // 高速フーリエ変換（基数2・反復型）。re, im を上書きする
+  const fftTables = new Map();
+  function fftInPlace(re, im){
+    const N = re.length;
+    let tb = fftTables.get(N);
+    if (!tb){
+      const rev = new Uint32Array(N);
+      const bits = Math.log2(N);
+      for (let i=0;i<N;i++){
+        let r = 0, x = i;
+        for (let b=0;b<bits;b++){ r = (r<<1) | (x & 1); x >>= 1; }
+        rev[i] = r;
+      }
+      const cos = new Float64Array(N/2), sin = new Float64Array(N/2);
+      for (let i=0;i<N/2;i++){ cos[i] = Math.cos(2*Math.PI*i/N); sin[i] = -Math.sin(2*Math.PI*i/N); }
+      tb = {rev, cos, sin};
+      fftTables.set(N, tb);
+    }
+    const {rev, cos, sin} = tb;
+    for (let i=0;i<N;i++){
+      const j = rev[i];
+      if (j > i){ let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let size=2; size<=N; size<<=1){
+      const half = size >> 1, step = N / size;
+      for (let i=0;i<N;i+=size){
+        for (let j=0, k=0; j<half; j++, k+=step){
+          const a = i+j, b = a+half;
+          const tr = re[b]*cos[k] - im[b]*sin[k];
+          const ti = re[b]*sin[k] + im[b]*cos[k];
+          re[b] = re[a] - tr; im[b] = im[a] - ti;
+          re[a] += tr; im[a] += ti;
+        }
+      }
+    }
+  }
+
+  // 窓をかけたデータ
+  function windowed(samples){
+    const N = samples.length, w = hann(N);
+    const xw = new Float64Array(N);
+    for (let i=0;i<N;i++) xw[i] = samples[i] * w[i];
+    return xw;
+  }
+
+  // 1 つの周波数の振幅（DFT の定義どおり：Σ x·cos と Σ x·sin。ゲルツェル法で計算）
+  // 戻り値は「その周波数の正弦波の振幅」（フルスケールの正弦波 = 1）
+  function dftAmplitude(xw, sumW, f){
+    const N = xw.length;
+    const omega = 2*Math.PI*f/sampleRate;
+    const coeff = 2*Math.cos(omega);
+    let s1 = 0, s2 = 0;
+    for (let n=0;n<N;n++){
+      const s0 = xw[n] + coeff*s1 - s2;
+      s2 = s1; s1 = s0;
+    }
+    const power = s1*s1 + s2*s2 - coeff*s1*s2;
+    return 2*Math.sqrt(Math.max(power, 0)) / sumW;
+  }
+
+  // スペクトル（振幅）。FFT：0 Hz〜ナイキスト、DFT：表示範囲だけ
+  function computeSpectrum(samples, method, fLo, fHi, dftStep, maxPoints){
+    const N = samples.length;
+    const w = hann(N);
+    const binHz = sampleRate / N;
+    if (method === 'fft'){
+      const re = windowed(samples), im = new Float64Array(N);
+      fftInPlace(re, im);
+      const amp = new Float32Array(N/2);
+      for (let k=0;k<N/2;k++) amp[k] = 2*Math.hypot(re[k], im[k]) / w.sum;
+      return {fStart: 0, step: binHz, amp, binHz, N, note: ''};
+    }
+    let step = (dftStep === 'auto') ? binHz : parseFloat(dftStep);
+    let note = '';
+    const span = Math.max(fHi - fLo, step);
+    if (span / step > maxPoints){
+      step = span / maxPoints;
+      note = `計算量が多いので、間隔を ${step.toFixed(2)} Hz に広げています（一時停止すると細かく計算します）`;
+    }
+    const xw = windowed(samples);
+    const count = Math.floor(span / step) + 1;
+    const amp = new Float32Array(count);
+    for (let i=0;i<count;i++) amp[i] = dftAmplitude(xw, w.sum, fLo + i*step);
+    return {fStart: fLo, step, amp, binHz, N, note};
+  }
+
+  // f0 ± halfW の帯域に入っている正弦波の振幅（帯域内のエネルギーから求める）
+  function bandAmplitude(samples, f0, halfW){
+    const N = samples.length;
+    const w = hann(N);
+    const binHz = sampleRate / N;
+    const xw = windowed(samples);
+    const pts = 32;
+    const step = (2*halfW) / pts;
+    let sum = 0;
+    for (let i=0;i<=pts;i++){
+      const a = dftAmplitude(xw, w.sum, f0 - halfW + i*step);
+      sum += a*a * ((i===0 || i===pts) ? 0.5 : 1);
+    }
+    // ∫ a(f)² df（ビン単位）= A² × ENBW（ハン窓で 1.5）
+    return Math.sqrt(sum * (step / binHz) / w.enbw);
+  }
+
+  // 帯域通過フィルター（2次のバンドパスを 4 段重ねる。波形表示用）
+  const BP_STAGES = 4;
+  function bandpass(samples, f0, halfW){
+    const shrink = Math.sqrt(Math.pow(2, 1/BP_STAGES) - 1); // 段を重ねると帯域が狭くなる分を補正
+    const bwStage = (2*halfW) / shrink;
+    const Q = Math.max(0.5, f0 / bwStage);
+    const w0 = 2*Math.PI*f0/sampleRate;
+    const alpha = Math.sin(w0) / (2*Q);
+    const a0 = 1 + alpha;
+    const b0 = alpha/a0, b2 = -alpha/a0, a1 = -2*Math.cos(w0)/a0, a2 = (1-alpha)/a0;
+    let x = Float64Array.from(samples);
+    for (let st=0; st<BP_STAGES; st++){
+      const y = new Float64Array(x.length);
+      let x1=0, x2=0, y1=0, y2=0;
+      for (let n=0;n<x.length;n++){
+        const yn = b0*x[n] + b2*x2 - a1*y1 - a2*y2;
+        x2 = x1; x1 = x[n]; y2 = y1; y1 = yn;
+        y[n] = yn;
+      }
+      x = y;
+    }
+    return x;
+  }
+
+  const toDb = (a) => 20*Math.log10(Math.max(a, 1e-7));
+  const fmtDb = (v) => v.toFixed(1).replace('-', '−');
 
   function isTextInputFocused(){
     const el = document.activeElement;
@@ -401,6 +617,21 @@
   const waveStateText = document.getElementById('waveStateText');
   const specStateText = document.getElementById('specStateText');
 
+  const methodSel = document.getElementById('methodSel');
+  const dftStepSel = document.getElementById('dftStepSel');
+  const specHint = document.getElementById('specHint');
+  const chkBand = document.getElementById('chkBand');
+  const bandFIn = document.getElementById('bandF');
+  const bandWSel = document.getElementById('bandW');
+  const btnBandPeak = document.getElementById('btnBandPeak');
+  const bandHint = document.getElementById('bandHint');
+  const levelLabel = document.getElementById('levelLabel');
+  const levelValue = document.getElementById('levelValue');
+  const levelSub = document.getElementById('levelSub');
+  const cvLevel = document.getElementById('cvLevel');
+  const btnLevelRef = document.getElementById('btnLevelRef');
+  const btnLevelRefClear = document.getElementById('btnLevelRefClear');
+
   // ---------- App State ----------
   const State = {
     STOPPED: 'stopped',
@@ -426,7 +657,6 @@
   let audioCtx = null;
   let mediaStream = null;
   let sourceNode = null;
-  let analyser = null;
   let workletNode = null;
   let sampleRate = 48000;
 
@@ -438,18 +668,29 @@
   let ringCount = 0; // total samples written (for timeline)
   let lastChunkTs = 0;
 
-  // Snapshot buffers for PAUSE
-  let snapWave = null;   // Float32Array of last (window) samples (from ring) at pause time
-  let snapWaveStartCount = 0; // sample count at start of snapshot
-  let snapSpec = null;   // spectrum y array in current y-mode (aligned to freq bins) at pause time
-  let snapSpecMeta = null; // {fftSize, minHz, maxHz, yMode}
+  // PAUSE：一時停止した瞬間の録音データ（リングバッファ全体の写し）。
+  // 波形・スペクトル・音の大きさは、測定中はリングバッファから、Pause 中はこの写しから計算する
+  let frozen = null;     // Float32Array（古い→新しい順）
+  let snapWave = null;   // 表示中の波形（時間窓の分）
+  let snapWaveStartCount = 0;
 
   // FFT / spectrum
-  let fftSize = 8192;
+  let fftSize = 8192;    // データ数 N
+  let method = 'fft';    // 'fft' | 'dft'
+  let dftStep = 'auto';  // DFT の周波数間隔
   let yMode = 'norm'; // 'norm' | 'db'
-  let freqBins = null;      // Float32Array for getFloatFrequencyData
-  let freqBinsByte = null;  // Uint8Array for getByteFrequencyData
   let specPeaks = [];       // for tick peak display (computed each draw)
+  let specCache = null;     // Pause 中の計算結果 {key, res}
+
+  // 周波数を絞る（②）
+  const band = {on:false, f0:1000, w:3};
+
+  // 音の大きさ（③）
+  const LEVEL_HISTORY_SEC = 15;
+  let levelHist = [];       // {t, db}
+  let levelRef = null;      // 基準（dB）
+  let lastLevelDb = null;
+  let lastLevelT = 0;
 
   // waveform window (seconds)
   let waveWindowSec = 1.0;
@@ -512,6 +753,9 @@
       ov.style.width = cv.style.width;
       ov.style.height = cv.style.height;
     }
+    const lr = cvLevel.getBoundingClientRect();
+    cvLevel.width = Math.max(100, Math.floor(lr.width * dpr));
+    cvLevel.height = Math.max(40, Math.floor(lr.height * dpr));
   }
   window.addEventListener('resize', () => {
     resizeCanvases();
@@ -587,11 +831,8 @@
       waveZoom.x0 = 0; waveZoom.x1 = waveWindowSec;
     }
 
-    // If paused, refresh snapshot to match new window (from paused snapshot source if possible)
-    if (appState === State.PAUSED){
-      // regenerate snapshot from ring at pause time range if ring still has it
-      snapWave = getWaveWindowFromRing(); // best effort
-    }
+    // Pause 中は、一時停止した瞬間のデータから作り直す
+    if (appState === State.PAUSED) snapWave = getWaveWindow();
     drawOnce();
   }
   waveWinRange.addEventListener('input', () => setWaveWindow(parseFloat(waveWinRange.value)));
@@ -618,19 +859,93 @@
   // ---------- Spectrum controls ----------
   function setFFTSize(n){
     fftSize = n|0;
-    if (analyser) analyser.fftSize = fftSize;
-    // Allocate arrays
-    if (analyser){
-      freqBins = new Float32Array(analyser.frequencyBinCount);
-      freqBinsByte = new Uint8Array(analyser.frequencyBinCount);
-    }
-    // Snapshot invalid
-    snapSpec = null;
-    snapSpecMeta = null;
-    if (appState === State.PAUSED) captureSpectrumSnapshot(); // re-snapshot with new FFT size if possible
-    drawOnce();
+    fftSel.value = String(fftSize);
+    updateHints();
+    drawOnce();  // Pause 中も、一時停止した瞬間のデータから計算し直す
   }
   fftSel.addEventListener('change', () => setFFTSize(parseInt(fftSel.value,10)));
+
+  function setMethod(m){
+    method = m;
+    methodSel.value = m;
+    for (const el of document.querySelectorAll('.dftOnly')) el.style.display = (m==='dft') ? '' : 'none';
+    updateHints();
+    drawOnce();
+  }
+  methodSel.addEventListener('change', () => setMethod(methodSel.value));
+  dftStepSel.addEventListener('change', () => { dftStep = dftStepSel.value; updateHints(); drawOnce(); });
+
+  // ---------- 周波数を絞る（②） ----------
+  function setBand(on, f0, w){
+    band.on = on;
+    if (Number.isFinite(f0)) band.f0 = clamp(f0, 20, Math.floor(sampleRate/2) - 1);
+    if (Number.isFinite(w)) band.w = w;
+    chkBand.checked = band.on;
+    bandFIn.value = String(Math.round(band.f0*10)/10);
+    bandWSel.value = String(band.w);
+    levelHist = [];
+    if (appState === State.PAUSED) snapWave = getWaveWindow();
+    updateHints();
+    drawOnce();
+  }
+  chkBand.addEventListener('change', () => setBand(chkBand.checked));
+  bandFIn.addEventListener('change', () => setBand(band.on, parseFloat(bandFIn.value)));
+  bandWSel.addEventListener('change', () => setBand(band.on, NaN, parseFloat(bandWSel.value)));
+  btnBandPeak.addEventListener('click', () => {
+    const data = getSpectrumDisplayData();
+    if (!data) return;
+    const {fStart, step, amp, i0, i1} = data;
+    let best = i0;
+    for (let i=i0;i<=i1;i++) if (amp[i] > amp[best]) best = i;
+    // 隣の点との放物線補間で、ビンの間の周波数まで推定する
+    let f = fStart + best*step;
+    if (best > 0 && best < amp.length-1){
+      const a = amp[best-1], b = amp[best], c = amp[best+1];
+      const den = a - 2*b + c;
+      if (den !== 0) f += 0.5*(a - c)/den * step;
+    }
+    setBand(true, f);
+  });
+
+  // 帯域の半分の幅（データ数が少ないと周波数の区別が粗くなるので、最低でもビン 2 個分）
+  function bandHalfWidth(){
+    const binHz = sampleRate / fftSize;
+    return Math.max(band.w, 2*binHz);
+  }
+
+  function updateHints(){
+    const binHz = sampleRate / fftSize;
+    const T = fftSize / sampleRate;
+    let t = `データ ${T.toFixed(2)} 秒分。周波数の分解能 約 ${binHz.toFixed(1)} Hz（＝サンプリング周波数 ÷ N）。`;
+    if (method === 'dft'){
+      t += ' DFT は周波数ごとに Σx·cos、Σx·sin を計算します。間隔を細かくすると曲線はなめらかになりますが、分解能は N で決まり変わりません。';
+    }
+    specHint.textContent = t;
+    if (!band.on){
+      bandHint.textContent = 'オンにすると、中心 ± 幅 の周波数の音だけで、波形と音の大きさを表示します。';
+      bandHint.classList.remove('warn');
+      return;
+    }
+    const hw = bandHalfWidth();
+    const sep = Math.ceil(hw + 3*binHz);
+    let h = `${band.f0.toFixed(1)} ± ${hw.toFixed(1)} Hz の音だけを表示中。ほかの班とは ${sep} Hz 以上ずらしてください。`;
+    if (hw > band.w + 1e-9) h += `（N = ${fftSize} では ±${band.w} Hz まで絞れません。N を大きくすると細かく絞れます）`;
+    bandHint.textContent = h;
+    bandHint.classList.toggle('warn', hw > band.w + 1e-9);
+  }
+
+  // ---------- 音の大きさの基準 ----------
+  btnLevelRef.addEventListener('click', () => {
+    if (lastLevelDb === null) return;
+    levelRef = lastLevelDb;
+    btnLevelRefClear.disabled = false;
+    drawOnce();
+  });
+  btnLevelRefClear.addEventListener('click', () => {
+    levelRef = null;
+    btnLevelRefClear.disabled = true;
+    drawOnce();
+  });
 
   function setSpecRange(minHz, maxHz){
     minHz = Math.max(0, Math.floor(minHz));
@@ -644,8 +959,6 @@
     minHzIn.value = String(minHz);
     maxHzIn.value = String(maxHz);
 
-    // Snapshot invalid (range affects CSV meta; but spectrum data still same bins)
-    if (appState === State.PAUSED) captureSpectrumSnapshot();
     drawOnce();
   }
 
@@ -663,9 +976,10 @@
   function setYAxisMode(next){
     yMode = next;
     btnSpecYAxis.textContent = (yMode==='norm') ? '縦軸：規格化' : '縦軸：dB';
-    // Must link: display, peak, A/B Δ, CSV
-    if (appState === State.PAUSED) captureSpectrumSnapshot();
-    // Recompute AB values to match current mode using stored bin values? We stored val, so keep; user can re-pick.
+    // A/B は縦軸の単位が変わるので解除する
+    ABSpec.A = ABSpec.B = null;
+    cursorSpec.active = false;
+    updateDeltas();
     drawOnce();
   }
   btnSpecYAxis.addEventListener('click', () => setYAxisMode(yMode==='norm' ? 'db' : 'norm'));
@@ -703,6 +1017,9 @@
     btnPause.textContent = (s===State.PAUSED) ? 'Resume' : 'Pause';
     btnStart.disabled = (s===State.RUNNING || s===State.PAUSED); // Start only from stopped
     btnPause.disabled = (s===State.STOPPED);
+    // スマホ用のボタンも同じ状態にする（測定中に Start を押すと二重に起動していた）
+    if (btnStartWave) btnStartWave.disabled = btnStart.disabled;
+    if (btnPauseWave){ btnPauseWave.disabled = btnPause.disabled; btnPauseWave.textContent = btnPause.textContent; }
     btnWaveCSV.disabled = !(s===State.PAUSED);
     btnSpecCSV.disabled = !(s===State.PAUSED);
 
@@ -764,22 +1081,15 @@
 
     sourceNode = audioCtx.createMediaStreamSource(mediaStream);
 
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = fftSize;
-    analyser.smoothingTimeConstant = 0; // educational: raw
-    freqBins = new Float32Array(analyser.frequencyBinCount);
-    freqBinsByte = new Uint8Array(analyser.frequencyBinCount);
-
     workletNode = new AudioWorkletNode(audioCtx, 'tap-processor');
 
-    // route: source -> analyser -> worklet -> (optional destination muted)
-    // We avoid playing out by not connecting to destination, but analyser/worklet need a path in some browsers.
-    // So we connect to a zero-gain node to destination.
+    // route: source -> worklet -> (muted) destination
+    // スペクトルは受け取った波形から自前で計算する（Pause 中も同じデータから再計算できるように）。
+    // 一部のブラウザは出力につながっていないと処理しないので、音量 0 で出力につなぐ。
     const zero = audioCtx.createGain();
     zero.gain.value = 0.0;
 
-    sourceNode.connect(analyser);
-    analyser.connect(workletNode);
+    sourceNode.connect(workletNode);
     workletNode.connect(zero);
     zero.connect(audioCtx.destination);
 
@@ -801,40 +1111,36 @@
   }
 
   // ---------- Snapshot helpers ----------
-  function getWaveWindowFromRing(){
-    if (!ring) return null;
-    const need = Math.floor(sampleRate * waveWindowSec);
-    const out = new Float32Array(need);
-    // ringWrite points to next write position; last sample is ringWrite-1
-    let idx = ringWrite - need;
-    while (idx < 0) idx += ringLen;
-    for (let i=0;i<need;i++){
-      out[i] = ring[(idx + i) % ringLen];
+  // 最新の n サンプル（測定中はリングバッファ、Pause 中は一時停止した瞬間の写しから）
+  function getRecent(n){
+    if (appState === State.PAUSED && frozen){
+      n = Math.min(n, frozen.length);
+      return frozen.subarray(frozen.length - n);
     }
-    snapWaveStartCount = ringCount - need;
+    if (!ring) return null;
+    n = Math.min(n, ringLen, ringCount);
+    const out = new Float32Array(n);
+    let idx = ringWrite - n;
+    while (idx < 0) idx += ringLen;
+    for (let i=0;i<n;i++) out[i] = ring[(idx + i) % ringLen];
     return out;
   }
 
-  function captureSpectrumSnapshot(){
-    if (!analyser) return;
-    if (yMode === 'db'){
-      analyser.getFloatFrequencyData(freqBins);
-      // keep a copy
-      snapSpec = new Float32Array(freqBins);
-    } else {
-      analyser.getByteFrequencyData(freqBinsByte);
-      // store as float 0..100 (%) after mapping
-      snapSpec = new Float32Array(freqBinsByte.length);
-      for (let i=0;i<freqBinsByte.length;i++){
-        snapSpec[i] = (freqBinsByte[i] / 255) * 100;
-      }
+  // 表示する波形（周波数を絞っているときはフィルターを通す）
+  function getWaveWindow(){
+    const need = Math.floor(sampleRate * waveWindowSec);
+    if (!band.on){
+      const out = getRecent(need);
+      if (out) snapWaveStartCount = ringCount - out.length;
+      return out;
     }
-    snapSpecMeta = {
-      fftSize,
-      minHz: parseFloat(minHzIn.value),
-      maxHz: parseFloat(maxHzIn.value),
-      yMode
-    };
+    // フィルターが落ち着くまでの分（0.5 秒）を前に足して計算し、その部分は捨てる
+    const warm = Math.floor(sampleRate * 0.5);
+    const raw = getRecent(need + warm);
+    if (!raw) return null;
+    const y = bandpass(raw, band.f0, band.w);
+    const n = Math.min(need, y.length);
+    return Float32Array.from(y.subarray(y.length - n));
   }
 
   // ---------- Start / Pause / Reset ----------
@@ -859,9 +1165,10 @@
 
   function pauseToggle(){
     if (appState === State.RUNNING){
-      // freeze snapshots + stop animation (display only)
-      snapWave = getWaveWindowFromRing();
-      captureSpectrumSnapshot();
+      // 一時停止した瞬間の録音データを写しておく（以後の表示・設定変更はすべてこの写しから）
+      frozen = getRecent(ringLen);
+      snapWave = getWaveWindow();
+      specCache = null;
       // Pauseに入る瞬間の波形縦軸倍率を固定
       waveGainHold = waveGain;
       setAppState(State.PAUSED);
@@ -869,6 +1176,8 @@
       drawOnce();
     } else if (appState === State.PAUSED){
       // Resume: keep audio running, resume draw, but per 案1 auto-clear zoom
+      frozen = null;
+      specCache = null;
       setAppState(State.RUNNING);
       scheduleDraw();
     }
@@ -886,9 +1195,8 @@
 
     // disconnect nodes
     try{ sourceNode?.disconnect(); }catch{}
-    try{ analyser?.disconnect(); }catch{}
     try{ workletNode?.disconnect(); }catch{}
-    sourceNode = null; analyser = null; workletNode = null;
+    sourceNode = null; workletNode = null;
 
     // close context
     if (audioCtx){
@@ -898,7 +1206,8 @@
 
     // clear buffers
     ring = null; ringLen = 0; ringWrite = 0; ringCount = 0;
-    snapWave = null; snapSpec = null; snapSpecMeta = null;
+    snapWave = null; frozen = null; specCache = null;
+    levelHist = []; lastLevelDb = null;
 
     // clear UI state
     resetWaveZoom();
@@ -945,6 +1254,7 @@
     lines.push(`# kind: waveform`);
     lines.push(`# sampleRate: ${sampleRate}`);
     lines.push(`# windowSec: ${waveWindowSec}`);
+    if (band.on) lines.push(`# bandpass: ${band.f0} +/- ${band.w} Hz (biquad x${BP_STAGES})`);
     lines.push(`# zoomX_ms: ${x0ms.toFixed(3)}..${x1ms.toFixed(3)}`);
     lines.push(`# zoomY_amp: ${waveZoom.active ? `${waveZoom.y0.toFixed(6)}..${waveZoom.y1.toFixed(6)}` : `-1..1`}`);
     lines.push(`t_ms,amp`);
@@ -969,15 +1279,17 @@
     const maxHz = parseFloat(maxHzIn.value);
     lines.push(`# kind: spectrum`);
     lines.push(`# sampleRate: ${sampleRate}`);
-    lines.push(`# fftSize: ${fftSize}`);
+    lines.push(`# method: ${method}${method==='dft' ? ` (step ${spec.step} Hz)` : ''}`);
+    lines.push(`# N: ${fftSize} (window: hann)`);
+    if (band.on) lines.push(`# band: ${band.f0} +/- ${bandHalfWidth().toFixed(2)} Hz`);
     lines.push(`# freqRangeHz: ${minHz}..${maxHz}`);
-    lines.push(`# yMode: ${yMode}`);
+    lines.push(`# yMode: ${yMode}${yMode==='db' ? ' (dBFS, full-scale sine = 0 dB)' : ' (amplitude, max in range = 100%)'}`);
     lines.push(`# zoomX_Hz: ${spec.x0.toFixed(3)}..${spec.x1.toFixed(3)}`);
     lines.push(`f_hz,y`);
 
-    const {binHz, yArr, i0, i1} = spec;
+    const {fStart, step, yArr, i0, i1} = spec;
     for (let i=i0;i<=i1;i++){
-      const f = i*binHz;
+      const f = fStart + i*step;
       const y = yArr[i];
       lines.push(`${f.toFixed(6)},${yMode==='norm'?y.toFixed(6):y.toFixed(6)}`);
     }
@@ -1061,6 +1373,7 @@
       muted: getComputedStyle(app).getPropertyValue('--muted').trim(),
       grid: getComputedStyle(app).getPropertyValue('--grid').trim(),
       accent: getComputedStyle(app).getPropertyValue('--accent').trim(),
+      accent2: getComputedStyle(app).getPropertyValue('--accent2').trim(),
       overlay: getComputedStyle(app).getPropertyValue('--overlay').trim(),
       overlayBorder: getComputedStyle(app).getPropertyValue('--overlayBorder').trim(),
       border: getComputedStyle(app).getPropertyValue('--border').trim(),
@@ -1080,6 +1393,87 @@
     const c = themeColors();
     drawWave(c, forceStatic);
     drawSpec(c, forceStatic);
+    drawLevel(c);
+  }
+
+  // ---------- 音の大きさ（dB） ----------
+  // 周波数を絞っているとき：その帯域の正弦波の振幅。絞っていないとき：直近 0.2 秒の実効値 × √2。
+  // どちらも「フルスケールの正弦波 = 0 dB」（dBFS）
+  function computeLevelDb(){
+    if (appState === State.STOPPED) return null;
+    if (band.on){
+      const samples = getRecent(fftSize);
+      if (!samples || samples.length < fftSize) return null;
+      return toDb(bandAmplitude(samples, band.f0, bandHalfWidth()));
+    }
+    const x = getRecent(Math.floor(sampleRate * 0.2));
+    if (!x || x.length === 0) return null;
+    let sum = 0;
+    for (let i=0;i<x.length;i++) sum += x[i]*x[i];
+    return toDb(Math.sqrt(sum / x.length) * Math.SQRT2);
+  }
+
+  function drawLevel(c){
+    const db = computeLevelDb();
+    lastLevelDb = db;
+    btnLevelRef.disabled = (db === null);
+    const now = performance.now() / 1000;
+    // 測定を始めた直後の無音（データ 0）は履歴に入れない
+    if (db !== null && db > -135 && appState === State.RUNNING && now - lastLevelT > 0.05){
+      levelHist.push({t: now, db});
+      lastLevelT = now;
+      while (levelHist.length && levelHist[0].t < now - LEVEL_HISTORY_SEC) levelHist.shift();
+    }
+
+    levelLabel.textContent = band.on
+      ? `音の大きさ（${band.f0.toFixed(1)} ± ${bandHalfWidth().toFixed(1)} Hz）`
+      : '音の大きさ（全体）';
+    if (db === null){
+      levelValue.textContent = '— dB';
+      levelSub.innerHTML = '&nbsp;';
+    } else if (levelRef !== null){
+      const d = db - levelRef;
+      levelValue.textContent = `${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)} dB`;
+      levelSub.textContent = `基準との差（いま ${fmtDb(db)} dBFS）`;
+    } else {
+      levelValue.textContent = `${fmtDb(db)} dB`;
+      levelSub.textContent = 'dBFS（最大入力の正弦波 = 0 dB）';
+    }
+
+    // 直近 15 秒の変化
+    const ctx = cvLevel.getContext('2d');
+    const w = cvLevel.width, h = cvLevel.height;
+    clearCanvas(ctx, w, h, c.bg);
+    if (!levelHist.length) return;
+    let lo = Infinity, hi = -Infinity;
+    for (const p of levelHist){ lo = Math.min(lo, p.db); hi = Math.max(hi, p.db); }
+    if (levelRef !== null){ lo = Math.min(lo, levelRef); hi = Math.max(hi, levelRef); }
+    lo = Math.floor((lo - 3) / 10) * 10;
+    hi = Math.ceil((hi + 3) / 10) * 10;
+    if (hi - lo < 20) lo = hi - 20;
+    const tEnd = levelHist[levelHist.length-1].t;
+    const X = (t) => w * (1 - (tEnd - t) / LEVEL_HISTORY_SEC);
+    const Y = (v) => h * (1 - (v - lo) / (hi - lo));
+    ctx.font = `${Math.round(10*devicePixelRatio)}px system-ui, sans-serif`;
+    ctx.fillStyle = c.muted;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`${hi} dB`, 4, 2);
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`${lo} dB`, 4, h - 2);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${LEVEL_HISTORY_SEC} 秒`, w - 4, h - 2);
+    if (levelRef !== null){
+      ctx.strokeStyle = '#d97706';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(0, Y(levelRef)); ctx.lineTo(w, Y(levelRef)); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.strokeStyle = c.accent;
+    ctx.lineWidth = 1.5 * Math.max(1, devicePixelRatio*0.6);
+    ctx.beginPath();
+    levelHist.forEach((p, i) => { if (i === 0) ctx.moveTo(X(p.t), Y(p.db)); else ctx.lineTo(X(p.t), Y(p.db)); });
+    ctx.stroke();
   }
 
   // ----- Ticks (ms / Hz) -----
@@ -1125,7 +1519,7 @@
     if (appState === State.RUNNING){
       // running: draw from ring (last window)
       // generate view samples (without copying huge if possible). We'll copy the window for simplicity.
-      snapWave = getWaveWindowFromRing();
+      snapWave = getWaveWindow();
     } else if (appState === State.STOPPED){
       // no data
       snapWave = null;
@@ -1195,11 +1589,12 @@
       if (x - lastLabelX < 70 * Math.max(1, devicePixelRatio)) continue;
       lastLabelX = x;
       const label = `${t.toFixed(spanDigits(xMax-xMin))}`;
-      ctx.fillText(label, x, padT - 6);
+      const half = ctx.measureText(label).width / 2 + 4;
+      ctx.fillText(label, clamp(x, half, w - half), padT - 6);
     }
-    // axis label "ms" at far right top
-    ctx.textAlign = 'right';
-    ctx.fillText('ms', padL+pw, padT - 6);
+    // axis label "ms"（目盛りの数字と重ならないよう、左側に置く）
+    ctx.textAlign = 'left';
+    ctx.fillText('ms', 4, padT - 6);
 
     // no data message
     if (!data){
@@ -1334,64 +1729,63 @@
 
   // ----- Spectrum data for drawing / cursor -----
   function getSpectrumDisplayData(){
+    if (appState === State.STOPPED) return null;
     const nyq = sampleRate/2;
     const minHz = clamp(parseFloat(minHzIn.value), 0, nyq);
     const maxHz = clamp(parseFloat(maxHzIn.value), minHz+1, nyq);
-
-    const binCount = analyser ? analyser.frequencyBinCount : (snapSpec ? snapSpec.length : 0);
-    if (!binCount) return null;
-
-    const binHz = sampleRate / fftSize; // since binCount = fftSize/2
-    // y array source
-    let yArr = null;
-    if (appState === State.RUNNING && analyser){
-      if (yMode === 'db'){
-        analyser.getFloatFrequencyData(freqBins);
-        yArr = freqBins;
-      } else {
-        analyser.getByteFrequencyData(freqBinsByte);
-        // map to 0..100
-        // We won't allocate every frame in place; reuse a temp buffer
-        if (!getSpectrumDisplayData._tmp || getSpectrumDisplayData._tmp.length !== freqBinsByte.length){
-          getSpectrumDisplayData._tmp = new Float32Array(freqBinsByte.length);
-        }
-        const tmp = getSpectrumDisplayData._tmp;
-        for (let i=0;i<freqBinsByte.length;i++) tmp[i] = (freqBinsByte[i]/255)*100;
-        yArr = tmp;
-      }
-    } else if (appState === State.PAUSED && snapSpec){
-      yArr = snapSpec;
-    } else {
-      return null;
-    }
-
-    // zoom x
     const x0 = specZoom.active ? specZoom.x0 : minHz;
     const x1 = specZoom.active ? specZoom.x1 : maxHz;
+    const paused = (appState === State.PAUSED);
 
-    let i0 = Math.floor(x0 / binHz);
-    let i1 = Math.ceil(x1 / binHz);
+    const key = [fftSize, method, dftStep, minHz, maxHz, yMode, paused].join('|');
+    let res;
+    const nowMs = performance.now();
+    if (specCache && specCache.key === key && (paused || nowMs - specCache.t < 33)){
+      // Pause 中は同じ結果を使う。測定中も 1/30 秒以内なら使い回す（計算の負担を減らす）
+      res = specCache.res;
+    } else {
+      let samples = getRecent(fftSize);
+      if (!samples || samples.length === 0) return null;
+      if (samples.length < fftSize){
+        // 測定を始めた直後でデータが足りないときは、前を 0 で埋める
+        const pad = new Float32Array(fftSize);
+        pad.set(samples, fftSize - samples.length);
+        samples = pad;
+      }
+      // DFT は計算量（点の数 × N）に上限を設ける。測定中は軽く、Pause 中は細かく
+      const maxPoints = Math.max(50, Math.floor((paused ? 2e8 : 6e6) / fftSize));
+      res = computeSpectrum(samples, method, minHz, maxHz, dftStep, maxPoints);
+      const {amp, fStart, step} = res;
+      const yArr = new Float32Array(amp.length);
+      if (yMode === 'db'){
+        for (let i=0;i<amp.length;i++) yArr[i] = toDb(amp[i]);
+      } else {
+        // 規格化：表示範囲の最大を 100 %（振幅の比）
+        const a = clamp(Math.floor((minHz - fStart)/step), 0, amp.length-1);
+        const b = clamp(Math.ceil((maxHz - fStart)/step), 0, amp.length-1);
+        let mx = 1e-12;
+        for (let i=a;i<=b;i++) if (amp[i] > mx) mx = amp[i];
+        for (let i=0;i<amp.length;i++) yArr[i] = amp[i] / mx * 100;
+      }
+      res.yArr = yArr;
+      specCache = {key, res, t: nowMs};
+    }
+
+    const {fStart, step, yArr} = res;
+    let i0 = Math.floor((x0 - fStart) / step);
+    let i1 = Math.ceil((x1 - fStart) / step);
     i0 = clamp(i0, 0, yArr.length-1);
     i1 = clamp(i1, 0, yArr.length-1);
     if (i1 < i0) [i0,i1] = [i1,i0];
 
-    return {binHz, yArr, i0, i1, minHz, maxHz, x0, x1};
+    return {...res, i0, i1, minHz, maxHz, x0, x1};
   }
 
   function drawSpec(c, forceStatic){
     const ctx = cvSpec.getContext('2d');
     const w = cvSpec.width, h = cvSpec.height;
 
-    // In PAUSE, spectrum must be fixed snapshot (no change by click)
-    if (appState === State.PAUSED){
-      // do not refresh snapSpec automatically unless explicitly changed by settings
-    } else if (appState === State.RUNNING){
-      // ok
-    } else {
-      // STOPPED
-      snapSpec = null;
-    }
-
+    // Pause 中は一時停止した瞬間のデータから計算した結果を使う（クリックしても変わらない）
     const data = getSpectrumDisplayData();
 
     clearCanvas(ctx, w, h, c.bg);
@@ -1426,15 +1820,42 @@
       return;
     }
 
-    const {binHz, yArr, i0, i1, x0, x1} = data;
+    const {fStart, step, yArr, i0, i1, x0, x1} = data;
+    if (method === 'dft' && data.note) specHint.textContent = data.note;
 
-    // y range
+    // y range（dB はフルスケールの正弦波 = 0 dB）
     let yMin, yMax;
     if (yMode === 'norm'){
-      yMin = -5; yMax = 100;
+      yMin = -5; yMax = 105;
     } else {
-      // typical analyser float range -140..0 (browser dependent). We'll clamp.
-      yMin = -140; yMax = 0;
+      yMin = -100; yMax = 0;
+    }
+
+    // 周波数を絞っているときは、その帯域に色を付ける
+    if (band.on){
+      const hw = bandHalfWidth();
+      const bx0 = padL + clamp((band.f0 - hw - x0)/(x1-x0), 0, 1) * pw;
+      const bx1 = padL + clamp((band.f0 + hw - x0)/(x1-x0), 0, 1) * pw;
+      ctx.fillStyle = 'rgba(255, 170, 0, 0.18)';
+      ctx.fillRect(bx0, padT, Math.max(2, bx1 - bx0), ph);
+      const cx = padL + (band.f0 - x0)/(x1-x0) * pw;
+      if (cx >= padL && cx <= padL + pw){
+        ctx.strokeStyle = 'rgba(217, 119, 6, 0.9)';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(cx, padT); ctx.lineTo(cx, padT+ph); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // 縦軸の目盛り
+    ctx.font = `${Math.round(11*devicePixelRatio)}px system-ui, sans-serif`;
+    ctx.fillStyle = c.muted;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    const yTicks = (yMode === 'norm') ? [0, 25, 50, 75, 100] : [-100, -80, -60, -40, -20, 0];
+    for (const v of yTicks){
+      const y = padT + (1 - (v - yMin)/(yMax - yMin)) * ph;
+      ctx.fillText(yMode === 'norm' ? `${v}%` : `${v} dB`, padL - 6, y);
     }
 
     // ticks for Hz
@@ -1445,8 +1866,8 @@
     for (let ti=0; ti<ticks.length; ti++){
       const tHz = ticks[ti];
       let next = (ti < ticks.length-1) ? ticks[ti+1] : x1;
-      let a = Math.floor(tHz / binHz);
-      let b = Math.floor(next / binHz);
+      let a = Math.floor((tHz - fStart) / step);
+      let b = Math.floor((next - fStart) / step);
       a = clamp(a, i0, i1);
       b = clamp(b, i0, i1);
       if (b < a) [a,b] = [b,a];
@@ -1482,22 +1903,24 @@
       if (x - lastX < minDx) continue;
       lastX = x;
 
-      // tick label (upper)
+      // tick label (upper)。端の数字が切れないよう、キャンバスの内側に収める
       const lbl = formatHz(tHz);
-      ctx.fillText(lbl, x, padT - 26);
+      const pk = specPeaks[ti];
+      const pkTxt = (yMode==='norm') ? `${pk.toFixed(0)}%` : `${pk.toFixed(1).replace('-', '−')} dB`;
+      const half = Math.max(ctx.measureText(lbl).width, ctx.measureText(pkTxt).width) / 2 + 4;
+      const lx = clamp(x, half, w - half);
+      ctx.fillText(lbl, lx, padT - 26);
 
       // peak label just below tick label
       ctx.textBaseline = 'top';
-      const pk = specPeaks[ti];
-      const pkTxt = (yMode==='norm') ? `${pk.toFixed(0)}%` : `${pk.toFixed(1)} dB`;
       ctx.fillStyle = c.muted;
-      ctx.fillText(pkTxt, x, padT - 22);
+      ctx.fillText(pkTxt, lx, padT - 22);
       ctx.fillStyle = c.fg;
       ctx.textBaseline = 'bottom';
     }
-    // axis hint
-    ctx.textAlign = 'right';
-    ctx.fillText('Hz', padL+pw, padT - 26);
+    // axis hint（目盛りの数字と重ならないよう、左側に置く）
+    ctx.textAlign = 'left';
+    ctx.fillText('Hz', 4, padT - 26);
 
     // draw spectrum
     ctx.strokeStyle = c.accent;
@@ -1512,7 +1935,7 @@
       ctx.beginPath();
       let first = true;
       for (let i = i0; i <= i1; i++) {
-        const freq = i * binHz;
+        const freq = fStart + i * step;
         const x = padL + (freq - x0) / (x1 - x0) * pw;
         const v = yArr[i];
         if (v === undefined || !Number.isFinite(v)) continue;
@@ -1527,8 +1950,8 @@
       for (let px = 0; px < pxCount; px++) {
         const fA = x0 + (px / pxCount) * (x1 - x0);
         const fB = x0 + ((px + 1) / pxCount) * (x1 - x0);
-        let ia = Math.floor(fA / binHz);
-        let ib = Math.floor(fB / binHz);
+        let ia = Math.floor((fA - fStart) / step);
+        let ib = Math.floor((fB - fStart) / step);
         ia = clamp(ia, i0, i1);
         ib = clamp(ib, i0, i1);
 
@@ -1660,7 +2083,7 @@
   function pickSpecAtCanvas(px, py){
     const data = getSpectrumDisplayData();
     if (!data) return null;
-    const {binHz, yArr, x0, x1, i0, i1} = data;
+    const {fStart, step, yArr, x0, x1, i0, i1} = data;
 
     const w = cvSpec.width, h = cvSpec.height;
     const padL = 70, padR = 18, padT = 58, padB = 36;
@@ -1669,9 +2092,9 @@
     if (px < padL || px > padL+pw || py < padT || py > padT+ph) return null;
 
     const hz = x0 + ((px - padL)/pw) * (x1 - x0);
-    const idx = clamp(Math.round(hz / binHz), i0, i1);
+    const idx = clamp(Math.round((hz - fStart) / step), i0, i1);
     const val = yArr[idx];
-    return {hz: idx*binHz, val, px, py};
+    return {hz: fStart + idx*step, val, px, py};
   }
 
   function updateDeltas(){
@@ -2156,7 +2579,7 @@
 // double-tap to reset zoom (mobile)
     if (ev.pointerType === 'touch'){
       const now = performance.now();
-      const r = wrapRect(target);
+      const r = ((target === 'wave') ? wrapWave : wrapSpec).getBoundingClientRect();
       const x = ev.clientX - r.left;
       const y = ev.clientY - r.top;
 
@@ -2206,6 +2629,8 @@
     setWaveWindow(1.0);
     setSpecRange(200, 1500);
     setFFTSize(8192);
+    setMethod('fft');
+    setBand(false, 1000, 3);
     setYAxisMode('norm');
     setAppState(State.STOPPED);
     resizeCanvases();
